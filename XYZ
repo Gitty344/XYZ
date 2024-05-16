@@ -212,7 +212,7 @@ void XOR()
 
 --------------------------------------------------------------------
 
------------------Stop and Wait ARQ server---------------------------------
+---------------Stop and Wait Server--------------------------------------
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,6 +223,940 @@ void XOR()
 #include <netinet/in.h>
 
 #define PORT 8000
+
+int i = 0, j = 0;
+
+int main() {
+    char servermessage[256];
+    struct sockaddr_in serveraddress, clientaddress;
+    int client_address_len = sizeof(clientaddress);
+
+    int serversocket;
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serversocket < 0) {
+        perror("socket failed");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int bindstatus;
+    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (bindstatus < 0) {
+        perror("binding failed");
+        return -1;
+    } else {
+        printf("binding is successful\n");
+    }
+
+    listen(serversocket, 3);
+    printf("Waiting for client connection...\n");
+
+    int clientsocket;
+    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
+    if (clientsocket < 0) {
+        perror("connection is rejected by server");
+        return -1;
+    } else
+        printf("connection is accepted\n");
+
+    int Tt, Tp, datasize, timer = 0;
+    recv(clientsocket, &Tt, sizeof(Tt), 0);
+    recv(clientsocket, &Tp, sizeof(Tp), 0);
+    recv(clientsocket, &datasize, sizeof(datasize), 0);
+
+    int data[datasize];
+
+    while (i < datasize) {
+        recv(clientsocket, &data[i], sizeof(data[i]), 0);
+        recv(clientsocket, &timer, sizeof(timer), 0);
+        printf("Data packet with data %d received at %d\n", data[i], timer);
+
+        timer = timer + Tt + Tp;
+        send(clientsocket, &timer, sizeof(timer), 0);
+
+        i++;
+    }
+
+    close(serversocket);
+
+    return 0;
+}
+
+-------------------Stop and wait client-----------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+
+int i = 0, j = 0;
+
+int main() {
+    struct sockaddr_in serveraddress;
+
+    int clientsocket;
+    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientsocket < 0) {
+        perror("socket creation failed");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int connection_status;
+    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (connection_status < 0) {
+        perror("connection failed");
+        return -1;
+    } else
+        printf("connection established\n");
+
+    int Tt, Tp, datasize;
+    printf("Enter the Transmission time and propagation time: ");
+    scanf("%d %d", &Tt, &Tp);
+    send(clientsocket, &Tt, sizeof(Tt), 0);
+    send(clientsocket, &Tp, sizeof(Tp), 0);
+
+    printf("Enter the size of data to be transmitted: ");
+    scanf("%d", &datasize);
+    send(clientsocket, &datasize, sizeof(datasize), 0);
+
+    int data[datasize];
+    printf("Enter the data bits: ");
+    for (i = 0; i < datasize; i++) {
+        scanf("%d", &data[i]);
+    }
+
+    int timer = 0;
+    for (i = 0; i < datasize; i++) {
+        timer = timer + Tt + Tp;
+        printf("%d\n", timer);
+        send(clientsocket, &data[i], sizeof(data[i]), 0);
+        send(clientsocket, &timer, sizeof(timer), 0);
+
+        recv(clientsocket, &timer, sizeof(timer), 0);
+        printf("Ack received at %d ms\n", timer);
+    }
+
+    close(clientsocket);
+
+    return 0;
+}
+
+
+--------------------SLiding Window-----------------------------
+--------------------selective repeat server--------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+#define N 100 // Assuming N is the window size for selective repeat
+
+int main() {
+    int serversocket, clientsocket, bindstatus;
+    char servermessage[256];
+    struct sockaddr_in serveraddress, clientaddress;
+    int client_address_len = sizeof(clientaddress);
+
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serversocket < 0) {
+        printf("socket failed\n");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (bindstatus < 0) {
+        printf("binding failed\n");
+        return -1;
+    } else {
+        printf("binding is successful\n");
+    }
+
+    listen(serversocket, 100);
+    printf("Waiting for client connection...\n");
+
+    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
+    if (clientsocket < 0) {
+        printf("connection is rejected by server\n");
+        return -1;
+    } else {
+        printf("connection is accepted\n");
+    }
+
+    char data[20];
+    printf("Enter the data: ");
+    scanf("%s", data);
+
+    int count = 0, j = 1;
+    int k = strlen(data);
+    int window_start = 0;
+    int window_end = N - 1;
+
+    send(clientsocket, &k, sizeof(k), 0);
+
+    while (window_start < k) {
+        for (int i = window_start; i <= window_end && i < k; i++) {
+            send(clientsocket, &data[i], sizeof(data[i]), 0);
+        }
+
+        for (int i = window_start; i <= window_end && i < k; i++) {
+            recv(clientsocket, &count, sizeof(count), 0);
+            if (count == j) {
+                printf("\nAcknowledgment received for bit %d", j);
+                j++;
+                window_start++;
+                window_end++;
+            } else {
+                printf("\nAcknowledgment not received for bit %d, resending", j);
+                j++;
+                count++;
+            }
+        }
+    }
+
+    close(serversocket);
+    return 0;
+}
+
+-----------------------selective repeat client---------------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+#define N 100 // Assuming N is the window size for selective repeat
+
+int main() {
+    struct sockaddr_in serveraddress;
+
+    int clientsocket;
+    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientsocket < 0) {
+        printf("socket creation failed\n");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int connection_status;
+    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (connection_status < 0) {
+        printf("connection failed\n");
+        return -1;
+    } else
+        printf("connection established\n");
+
+    int count = 0;
+    char data[20];
+    int k;
+
+    recv(clientsocket, &k, sizeof(k), 0);
+
+    int window_start = 0;
+    int window_end = N - 1;
+
+    while (window_start < k) {
+        for (int i = window_start; i <= window_end && i < k; i++) {
+            recv(clientsocket, &data[i], sizeof(data[i]), 0);
+            printf("Received bit %d from server\n", i + 1);
+        }
+
+        for (int i = window_start; i <= window_end && i < k; i++) {
+            int x;
+            do {
+                printf("+ve ack - 1/-ve ack - 2: ");
+                scanf("%d", &x);
+
+                if (x == 1) {
+                    count = i + 1; // Positive acknowledgment received
+                    send(clientsocket, &count, sizeof(count), 0);
+                    window_start++;
+                    break; // Exit the loop after sending acknowledgment
+
+                } else if (x == 2) {
+                    // Negative acknowledgment received or invalid input
+                    send(clientsocket, &count, sizeof(count), 0);
+                    // Continue to the next bit without waiting for acknowledgment
+                    break;
+
+                } else {
+                    printf("Invalid input. Please enter 1 or 2.\n");
+                }
+            } while (1); // Keep asking for acknowledgment until valid input is received
+        }
+    }
+
+    printf("\nData received from the server is %s \n", data);
+
+    close(clientsocket);
+    return 0;
+}
+
+------------------------GO Back N server------------------------------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+
+int i = 0, j = 0;
+
+int main()
+{
+    char servermessage[256];
+    struct sockaddr_in serveraddress, clientaddress;
+    int client_address_len = sizeof(clientaddress);
+
+    int serversocket;
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serversocket < 0)
+    {
+        printf("Socket failed");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int bindstatus;
+    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (bindstatus < 0)
+    {
+        printf("Binding failed\n");
+        return -1;
+    }
+    else
+    {
+        printf("Binding is successful\n");
+    }
+
+    listen(serversocket, 3);
+    printf("Waiting for client connection...\n");
+
+    int clientsocket;
+    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
+    if (clientsocket < 0)
+    {
+        printf("Connection is rejected by server\n");
+        return -1;
+    }
+    else
+        printf("Connection is accepted\n");
+
+    int Tt, Tp, N, datasize, lost_packet;
+    recv(clientsocket, &Tt, sizeof(Tt), 0);
+    recv(clientsocket, &Tp, sizeof(Tp), 0);
+    recv(clientsocket, &N, sizeof(N), 0);
+    recv(clientsocket, &datasize, sizeof(datasize), 0);
+    recv(clientsocket, &lost_packet, sizeof(lost_packet), 0);
+
+    int timer = 0;
+
+    while (i < datasize)
+    {
+        if (i != lost_packet - 1)
+        {
+            recv(clientsocket, &timer, sizeof(timer), 0);
+            printf("Data packet %d received at time %d ms\n", i, timer);
+
+            timer = timer + Tt + Tp;
+            send(clientsocket, &timer, sizeof(timer), 0);
+        }
+        else
+        {
+            printf("Data packet %d lost during transmission\n", i);
+        }
+        i++;
+    }
+
+    close(serversocket);
+
+    return 0;
+}
+
+---------------------GO Back N Client-----------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+
+int i = 0, j = 0;
+
+int main()
+{
+    struct sockaddr_in serveraddress;
+
+    int clientsocket;
+    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientsocket < 0)
+    {
+        printf("Socket creation failed\n");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int connection_status;
+    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (connection_status < 0)
+    {
+        printf("Connection failed\n");
+        return -1;
+    }
+    else
+        printf("Connection established\n");
+
+     
+    int Tt, Tp, N, datasize;
+    printf("Enter the transmission time and propagation time in ms: ");
+    scanf("%d %d", &Tt, &Tp);    
+
+    send(clientsocket, &Tt, sizeof(Tt), 0);
+    send(clientsocket, &Tp, sizeof(Tp), 0);
+
+    printf("Enter the value of N (sender's window): ");
+    scanf("%d", &N);
+    send(clientsocket, &N, sizeof(N), 0);
+
+    printf("Enter the size of data to be transmitted: ");
+    scanf("%d", &datasize);
+    send(clientsocket, &datasize, sizeof(datasize), 0);
+
+    int data[datasize];
+    printf("Enter the data bits: ");
+    for (int i = 0; i < datasize; i++) {
+        scanf("%d", &data[i]);
+    }
+
+    int lost_packet;
+    printf("Enter the packet to be lost while transmission: ");
+    scanf("%d", &lost_packet);
+    send(clientsocket, &lost_packet, sizeof(lost_packet), 0);
+
+    int i = 0;
+    int timer = 0, timer1 = 0;
+
+    while (i < datasize) {
+        int x = 0;
+
+        for (int j = i; j < i + N && j < datasize; j++) {
+            timer = timer + Tt;
+            printf("Data packet %d sent at time %d ms\n", j, timer);
+
+            timer1 = timer + Tp;
+            send(clientsocket, &timer1, sizeof(timer1), 0);
+        }
+
+        for (int j = i; j < i + N && j < datasize; j++) {
+            if (j != lost_packet - 1) {
+                int timer;
+                recv(clientsocket, &timer, sizeof(&timer),0);
+                printf("Acknowledgment for packet %d received at time %d ms\n", j, timer);
+                x++;
+            } else {
+                printf("Acknowledgment for packet %d not received\n", j);
+                printf("Retransmitting window\n");
+
+                // Retransmit all unacknowledged packets in the current window
+                for (int k = i; k < i + x; k++) {
+                    send(clientsocket,&k,sizeof(k),0);
+                }
+
+                // Update timer for the lost packet
+                int retransmitTimer = (j + 1) * Tp;
+                printf("Retransmitted packet %d at time %d ms\n", j, retransmitTimer);
+
+                // Move the window to the next unacknowledged packet
+                i = j + 1;
+
+                // Break from the loop since retransmission occurred
+                break;
+            }
+        }
+        
+        // Move the window to the next set of packets
+        i += x;
+    }
+
+    // Close the socket
+    close(clientsocket);
+
+    return 0;
+}
+
+------------Stop and Wait ARQ server-----------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+#define N 
+
+
+
+int main()
+{
+    int serversocket, clientsocket, bindstatus;
+    char servermessage[256];
+    struct sockaddr_in serveraddress, clientaddress;
+    int client_address_len = sizeof(clientaddress);
+
+    serversocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serversocket < 0)
+    {
+        printf("socket failed\n");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if (bindstatus < 0)
+    {
+        printf("binding failed\n");
+        return -1;
+    }
+    else
+    {
+        printf("binding is successful\n");
+    }
+
+    listen(serversocket,100);
+    printf("Waiting for client connection...\n");
+
+    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
+    if (clientsocket < 0)
+    {
+        printf("connection is rejected by server\n");
+        return -1;
+    }
+    else
+    {
+        printf("connection is accepted\n");
+    }
+
+ char data[20];
+    printf("Enter the data: ");
+    scanf("%s", data);
+
+    int count = 0, j = 1;
+    int k = strlen(data);
+
+    send(clientsocket, &k, sizeof(k), 0);
+
+    for(int i = 0; i < k; i++)
+    {   send(clientsocket, &data[i], sizeof(data[i]), 0);
+        recv(clientsocket, &count, sizeof(count), 0);
+        //j++; working partially, keep if nothing works otherwise j=1 and 2 j++ after printf in if 
+        if(count == j)
+        {   
+            printf("\nAcknowledgement received for bit %d", j);
+            j++;
+        }
+        else if (count!=j)
+        {
+            printf("\nAcknowledgement not received for bit %d resending", j);
+            j++;
+        }
+    
+    }
+    close(serversocket);
+    return 0;  
+}
+
+---------------Stop and wait ARQ client------------------------------
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+#define N 
+
+
+int main()
+{
+    struct sockaddr_in serveraddress;
+
+    int clientsocket;
+    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
+    if(clientsocket<0)
+    {
+        printf("socket creation failed\n");
+        return -1;
+    }
+
+    serveraddress.sin_family = AF_INET;
+    serveraddress.sin_port = htons(PORT);
+    serveraddress.sin_addr.s_addr = INADDR_ANY;
+
+    int connection_status;
+    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
+    if(connection_status < 0)
+    {
+        printf("connection failed\n");
+        return -1;
+    }
+    else
+        printf("connection established\n");
+
+    int count = 0;
+    char data[20];
+    int k;
+
+    recv(clientsocket, &k, sizeof(k), 0);
+
+    for (int i = 0; i < k; i++) {
+        recv(clientsocket, &data[i], sizeof(data[i]), 0);
+        printf("Received bit %d from server\n", i + 1);
+
+        int x;
+        do {
+            printf("+ve ack - 1/-ve ack - 2: ");
+            scanf("%d", &x);
+
+            if (x == 1) {
+                count++; 
+                send(clientsocket, &count, sizeof(count), 0);
+                break; // Exit the loop after sending acknowledgment
+
+            } else if (x == 2) {
+                
+                send(clientsocket, &count, sizeof(count), 0);
+                count++;
+                // Continue to the next bit without waiting for acknowledgment
+                break;
+            } else {
+                printf("Invalid input. Please enter 1 or 2.\n");
+            }
+        } while (1); // Keep asking for acknowledgment until valid input is received
+    }
+
+    printf("\nData received from the server is %s \n", data);
+
+    close(clientsocket);
+    return 0;
+}
+
+-------------------------------------Hamming without socket-----------------------------
+-------------------------------------use -lm while executring---------------------------
+
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#define N 50
+
+char *fill_parity(char data[],int p);
+char* error(char data[]);
+void receive(char data[]);
+void reverseString(char *str);
+
+int main(){
+    char data[N];
+    int choice;
+    printf("------------------------------------------------------------\n");
+    do{
+    printf("Enter Data: ");
+    scanf("%s",data);
+    data[strlen(data)] ='\0';
+    reverseString(data);
+    //To calculate number of parity bits
+    int data_sz = strlen(data);
+    int p=1;
+    while(1){
+        if(pow(2,p)>= data_sz+p+1){
+            break;
+        }
+        p++;
+    }
+    printf("Required number of Parity Bits: %d\n",p);
+
+    //new string array for storing data with parity bits
+    int j = 0, k=0, l=0;
+    char data1 [N];
+    for(j=0; j<data_sz+p; j++){
+
+    if(j+1 == pow(2,k)){
+        data1[j]= 'p'; //p->null value
+        k++;
+    }else{
+        data1[j] = data[l];
+        l++;
+    }
+    }
+    data1[data_sz+p]='\0';
+    printf("Data with parity bits: %s\n",data1);
+    printf("------------------------------------------------------------\n");
+
+    fill_parity(data1,p);
+    printf("------------------------------------------------------------\n");
+
+    printf("1.Enter [a] to pass data without error.\n2.Enter [b] to pass data with error.\n");
+    char ch;
+    scanf(" %c",&ch);
+
+    switch(ch){
+        case 'a': receive(data1);
+        break;
+        case 'b': error(data1); receive(data1);
+        break;
+        default:printf("Wrong Input.");
+    }
+
+    printf("\nDo you want to continue: [yes(1)/no(0)] ->");
+    scanf("%d",&choice);
+     if(choice == 0){
+    printf("\n-----------------------Thank You!---------------------------\n\n");
+    }else{
+    printf("------------------------------------------------------------\n\n");
+    }
+    }while(choice==1);
+    return 0;
+}
+
+char *fill_parity(char data1[],int p){
+    //filling null parity positions
+    char q[N];
+    while(p>=1){
+        int count = 0, a=0;
+        int i = pow(2,p-1);
+        int z = i;
+        for(i=z-1; i<strlen(data1); i++){
+            if(count == z){
+                i=i+z-1;
+                count = 0;
+            }else{
+            q[a] = data1[i];
+            a++;
+            count ++;
+            }
+        }
+        q[a] = '\0';
+        printf("For Parity at %dth: %s\n",z,q);
+        count = 0;
+        for(i=0; i<strlen(q); i++){
+            if(q[i]=='1'){
+                count++;
+            }
+        }
+        if(count%2 == 0){
+            data1[z-1] = '0';
+        }
+        else{
+            data1[z-1] = '1';
+        }
+        printf("Data: %s\n",data1);
+        p--;
+    }
+    return data1;
+}
+
+char* error(char data[]){
+    printf("------------------------------------------------------------\n");
+
+    printf("Final data: ");
+    for(int d=0; d<strlen(data); d++){
+        printf("%c",data[d]);
+    }
+    printf("\n");
+
+//    printf("Enter position for switching a bit:");
+    int pos;
+    //pos=rand()%strlen(data);
+//    scanf("%d",&pos);
+    if(data[pos-1]=='0'){
+        data[pos-1]='1';
+    }else{
+        data[pos-1]='0';
+    }
+    printf("Data after fliping a bit: %s\n",data);
+    printf("------------------------------------------------------------\n");
+    return data;
+}
+
+void receive(char data[]){
+    int i=0;
+    char q[N];
+    int arr[N];
+    while(1){
+    if(strlen(data) <= pow(2,i)){
+        break;
+    }
+    i++;
+    }
+    int y = i;
+    while(i!=0){
+        int a=0, count=0;
+        int s = pow(2,i-1);
+        for(int j=s-1; j<strlen(data); j++){
+            if(count == s){
+                j=j+s-1;
+                count = 0;
+            }else{
+            q[a] = data[j];
+            a++;
+            count ++;
+            }
+        }
+        q[a] = '\0';
+        printf("For Parity at %dth: %s\n",s,q);
+        count=0;
+        for(int k=1; k<strlen(q); k++){
+            if(q[k]=='1'){
+                count++;
+            }
+        }
+        if(count%2==0 && q[0]=='0'){
+            arr[i-1]=0;
+        }else if(count%2!=0 && q[0]=='1'){
+            arr[i-1]=0;
+        }
+        else{
+            arr[i-1]=1;
+        }
+
+        i--;
+    }
+    int flag = 1 ;
+    int sum=0;
+    printf("Resultant check Array of :");
+    for(int e=y-1; e>=0; e--){
+        printf("%d",arr[e]);
+        if(arr[e]==1){
+            flag=0;
+            sum+= pow(2,e);
+        }
+    }
+    printf("\n------------------------------------------------------------\n");
+    if(flag==0){
+        printf("!!! Data Rejected !!!\n");
+        printf("error at pos-->%d\n",sum);
+    }else{
+        printf("!!! Data Accepted !!!\n");
+    }
+    printf("------------------------------------------------------------\n");
+}
+
+void reverseString(char *str) {
+    int length = strlen(str);
+    int start = 0;
+    int end = length - 1;
+
+    while (start < end) {
+        // Swap characters at the start and end indices
+        char temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+
+        // Move indices towards the center
+        start++;
+        end--;
+    }
+}
+
+
+
+---------------------------Hamming with Socket----------------------------------
+---------------------------Hamming Server---------------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include<math.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8000
+
+int i, j;
+char data[20], final_data[20], rec_data[20];
+
+int parity_check(int *parity_index, int parity_index_size, char *rec_data)
+{
+    int x;
+    int count = 0;
+    for(i = 0; i < parity_index_size; i++)
+    {
+        int index = parity_index[i];
+        if(rec_data[index]== '1')
+            count++;
+    }
+
+    if(count % 2 != 0)
+        x = 1;
+    else
+        x = 0;
+
+    return x;
+}
+
+void strrev(char *rec_data)
+{
+    int len;
+    len = strlen(rec_data);
+    int start = 0, end = len - 1;
+    while(start < end)
+    {
+        char temp = rec_data[start];
+        rec_data[start] = rec_data[end];
+        rec_data[end] = temp;
+        start++;
+        end--;
+    }
+}
 
 int main()
 {
@@ -268,49 +1202,99 @@ int main()
     else
         printf("connection is accepted\n");
 
+    recv(clientsocket, final_data, sizeof(final_data), 0);
+    printf("Received data: %s\n", final_data);
 
-    char data[20];
-    printf("Enter the data: ");
-    scanf("%s", data);
+    printf("Enter the data received: ");
+    scanf("%s", rec_data);
 
-    int count = 0, j = 1;
-    int k = strlen(data);
+    strrev(rec_data);
 
-    send(clientsocket, &k, sizeof(k), 0);
+    int parity_index1[] = {0, 2, 4, 6, 8, 10};
+    int parity_index2[] = {1, 2, 5, 6, 9, 10};
+    int parity_index3[] = {3, 4, 5, 6};
+    int parity_index4[] = {7, 8, 9, 10};
 
-    for(int i = 0; i < k; i++)
-    {   send(clientsocket, &data[i], sizeof(data[i]), 0);
-
-        recv(clientsocket, &count, sizeof(count), 0);
-
-        if(count == j)
-        {
-            printf("\nAcknowledgement received for bit %d from client ", j);
-            j++;
-        }
-        else
-        {
-            printf("\nAcknowledgement not received for bit %d ", j);
-            j++;
-        }
-    }
+    int parity_index1_size = sizeof(parity_index1) / sizeof(parity_index1[0]);
+    int parity_index2_size = sizeof(parity_index2) / sizeof(parity_index2[0]);
+    int parity_index3_size = sizeof(parity_index3) / sizeof(parity_index3[0]);
+    int parity_index4_size = sizeof(parity_index4) / sizeof(parity_index4[0]);
     
+    char parity_results[4];
+
+    parity_results[3] = parity_check(parity_index1, parity_index1_size, rec_data);
+    parity_results[2] = parity_check(parity_index2, parity_index2_size, rec_data);
+    parity_results[1] = parity_check(parity_index3, parity_index3_size, rec_data);
+    parity_results[0] = parity_check(parity_index4, parity_index4_size, rec_data);
+
+    printf("Parity check results: P8: %d, P4: %d, P2: %d, P1: %d\n", parity_results[0], parity_results[1], parity_results[2], parity_results[3]);
+
+    int sum = 0;
+    for(i = 0; i < 4; i++)
+    {
+        int y = sizeof(parity_results) - (i+1);
+        sum = sum + parity_results[i]*pow(2, y);
+    }
+
+    if(sum == 0)
+        printf("\nNo error\n");
+    else
+        printf("\nError in bit %d\n", sum);
 
     close(serversocket);
 
     return 0;
 }
 
------------------Stop and Wait ARQ client---------------------------------
+-------------------------------Hamming Client---------------------------------------------
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include<math.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 #define PORT 8000
+
+int i, j;
+char data[20], final_data[20], rec_data[20];
+
+void even_parity(int *parity_index, int parity_index_size, int x, char *final_data)
+{
+    int count = 0;
+    for(i = 0; i < parity_index_size; i++)
+    {
+        int index = parity_index[i];
+        if(final_data[index] == '1')
+            count++;
+    }
+
+    if(count % 2 != 0)
+        final_data[x] = '1';
+    else
+        final_data[x] = '0';
+
+    printf("Final string: %s\n", final_data);
+}
+
+void strrev(char *rec_data)
+{
+    int len;
+    len = strlen(rec_data);
+    int start = 0, end = len - 1;
+    while(start < end)
+    {
+        char temp = rec_data[start];
+        rec_data[start] = rec_data[end];
+        rec_data[end] = temp;
+        start++;
+        end--;
+    }
+}
+
 
 int main()
 {
@@ -339,48 +1323,630 @@ int main()
         printf("connection established\n");
 
     
-    int count = 0;
-    char data[20];
-    int k;
+    printf("Enter the 7 bit data: ");
+    scanf("%s", data);
 
-    recv(clientsocket, &k, sizeof(k), 0);
+    int data_length = strlen(data);
 
-    for(int i = 0; i < k; i++)
+    strrev(data);
+
+    int current_data_index = 0;
+    int final_data_index = 0;
+
+    for(i = 1; i<= data_length + 4; i++)
     {
-        recv(clientsocket, &data[i], sizeof(data[i]), 0);
-        printf("Received bit %d from server\n", i+1);
-
-        if(i == 3)
+        if((i & (i-1)) == 0)
         {
-            int x;
-            printf("Press 1 if you want to send ack, else press 2: ");
-            scanf("%d", &x);
-
-            if(x == 1)
-            {
-                count++;
-                send(clientsocket, &count, sizeof(count) ,0);
-            }
-            else
-                count++;
+            final_data[final_data_index] = '_';
+            final_data_index++;
         }
         else
         {
-            count++;
-            send(clientsocket, &count, sizeof(count), 0);
+            final_data[final_data_index] = data[current_data_index];
+            final_data_index++;
+            current_data_index++;
         }
     }
 
-    printf("\nData received from the server is %s ", data);
+    final_data[final_data_index] = '\0';
+    printf("Final data string is: %s\n", final_data);
 
+    int parity_index1[] = {0, 2, 4, 6, 8, 10};
+    int parity_index2[] = {1, 2, 5, 6, 9, 10};
+    int parity_index3[] = {3, 4, 5, 6};
+    int parity_index4[] = {7, 8, 9, 10};
+
+    int parity_index1_size = sizeof(parity_index1) / sizeof(parity_index1[0]);
+    int parity_index2_size = sizeof(parity_index2) / sizeof(parity_index2[0]);
+    int parity_index3_size = sizeof(parity_index3) / sizeof(parity_index3[0]);
+    int parity_index4_size = sizeof(parity_index4) / sizeof(parity_index4[0]);
+
+    even_parity(parity_index1, parity_index1_size, 0, final_data);
+    even_parity(parity_index2, parity_index2_size, 1, final_data);
+    even_parity(parity_index3, parity_index3_size, 3, final_data);
+    even_parity(parity_index4, parity_index4_size, 7, final_data);
+
+    strrev(final_data);
+
+    printf("The string to be transmitted is: %s\n", final_data);
+
+    send(clientsocket, final_data, sizeof(final_data), 0);
 
     close(clientsocket);
 
     return 0;
 }
 
+--------------------------Framing Methods-----------------------------------
+--------------------------Byte Count----------------------------------------
+
+#include <stdio.h>
+#include <string.h>
+#define S 20
+
+int data2[S];
+
+void sender(){
+    int data1[S];
+    int data;
+    int data_len=0, i=0;
+    int last_digit;
+    printf("Enter Data:");
+    scanf("%d",&data);
+
+    while(data!=0){
+        last_digit=data%10;
+        data=data/10;
+        data1[i++]=last_digit;
+        data_len++;
+    }
+    data2[0]=data_len+1;
+    int k=1;
+    for(int i=data_len-1; i>=0; i--){
+        data2[k++]=data1[i];
+    }
+   
+ printf("Enter sender's data:");
+    for(int i=0; i<data_len+1; i++){
+        printf("%d",data2[i]);
+    }
+    printf("\n");
+}
+
+void receiver(int data[]){
+    char rev_data[S];
+    int data_sz = data[0];
+    int j=0;
+    for (int i = 1; i < data_sz; i++)
+    {
+        rev_data[j++]=data[i];
+    }
+    printf("Original received data: ");
+    for(int i=0; i<data_sz-1; i++){
+        printf("%d",rev_data[i]);
+    }
+    printf("\n");
+}
+int main(){
+    sender();
+    receiver(data2);
+}
+
+-------------------------Byte Stuffing---------------------------------
+// flag bytes with byte stuffing Framing Method
+#include <stdio.h>
+#include <string.h>
+#define S 100
+
+char flag[]={'0','1','1','1','1','1','1','0'};
+char esc[]={'0','0','0','1','1','0','1','1'};
+
+void reciever(char data[]){
+    char res[S];
+    int count=0, count1=0, j=0, k=0, l=0, p=0;
+    while(1){
+        int isFlag=0, isEsc=0;
+        for(int i=0; i<8; i++){
+            if(data[j+i]==flag[i]){
+                isFlag=1;
+            }else{
+                isFlag=0;
+                break;
+            }
+        }
+        for(int m=0; m<8; m++){
+            if(data[j+m]==esc[m]){
+                isEsc=1;
+            }else{
+                isEsc=0;
+                break;
+            }
+        }
+        if(isFlag==1 && count1==0){
+            count++;
+            l++;
+        }else if(isEsc==1 && count1==0){
+      
+      count1++;
+            l++;
+        }else{
+            for(int i=0; i<8; i++){
+                res[p++]=data[j+i];
+            }
+            count1=0;
+        }
+        j+=8;
+        if(count==2){
+            break;
+        }
+    }
+    res[strlen(data)-l*8]='\0';
+    printf("Original Data is %s",res);
+}
+
+int main(){
+    char data[S];
+    char data1[S];
+    char data2[S];
+
+    printf("Enter Data:");
+    scanf("%s",data);
+    data[strlen(data)] = '\0';
+
+    //covert bits to bytes by appending leading zero's
+    int c_bytes;
+    if(strlen(data)%8 == 0){
+        c_bytes = strlen(data)/8;
+        for(int i=0; i<c_bytes*8; i++){
+            data1[i]=data[i];
+        }
+        data1[c_bytes*8]='\0';
+    }else{
+        c_bytes = (strlen(data)/8)+1;
+        for(int i=0; i<(c_bytes*8)-strlen(data); i++){
+           
+ data1[i] = '0';
+        }
+        int j=0;
+        for(int i=(c_bytes*8)-strlen(data); i<c_bytes*8; i++){
+            data1[i] = data[j++]; 
+        }
+        data1[c_bytes*8]='\0';
+    }
+    printf("Data is of %d bytes.\n",c_bytes);
+    printf("Data Converted in Bytes format: %s\n",data1);
+
+    //append esc if data bits are equal to flag or esc key
+    int j=0, k=0, count1=0; 
+    int count = c_bytes;
+    while(1){
+        int isFlag=1, isEsc=1;
+        for(int i=0; i<8; i++){
+            if(data1[j+i]!=flag[i]){
+                isFlag=0;
+                break;
+            }
+        }
+        
+        for(int m=0; m<8; m++){
+            if(data1[j+m]!=esc[m]){
+                isEsc=0;
+                break;
+            }
+        }
+        if(isFlag==1 || isEsc==1){
+            count1++;
+            for(int i=0; i<8; i++){
+                data2[k++] = esc[i];
+            }
+        }
+        for(int l=0; l<8; l++){
+            data2[k++]=data1[j++];
+    
+    }
+        count--;
+        if(count==0){
+            break;
+        }
+        }
+        data2[strlen(data1)+count1*8]='\0';
+        printf("Data after inserting Esc key if data having flag or Esc byte: %s\n",data2);
+
+        //create final data by appending flag at both ends
+        for(int i=0; i<8; i++){
+            data1[i] = flag[i];
+        }
+        for(int i=0; i<strlen(data2); i++){
+            data1[8+i] = data2[i];
+        }
+         for(int i=0; i<8; i++){
+            data1[8+strlen(data2)+i] = flag[i];
+        }
+        data1[16+strlen(data2)]='\0';
+        printf("Final data to be sent: %s\n",data1);
+
+        reciever(data1);
+        return 0;
+    }
+
+
+------------------------Bit Stuffing-----------------------------------
+
+#include <stdio.h>
+#include <string.h>
+
+char flag[]={'0','1','1','1','1','1','1','0'};
+#define s 50
+
+void receiver(char data[]){
+    char res[s];
+    int z, j, k=0;
+    int count=0;
+    for(int i=0;i< strlen(data);i++){
+        count=0;
+        if(data[i]=='0'){
+            count++;
+            for( j=i+1;j<i+8;j++){
+                if(data[j]=='1'){
+                    count++;
+                }else{
+                    break;
+                }
+            }
+        }
+        if(count==7){
+            i=j;
+        }else{
+            res[k++]=data[i];
+        }
+    }
+    res[strlen(data)-16]='\0';
+    printf("Data after Flag bytes dropped by reciever: %s\n",res);
+    k=0;
+    int count1=0;
+    for(int i=0; i<strlen(res); i++){
+        count=0;
+
+        if(res[i]=='0'){
+            data[k++]= res[i];
+            for(int j=i+1;j<i+7;j++){
+                if(res[j]=='1'){
+                    data[k++]=res[j];
+                    count++;
+                }
+                else{
+                    break;
+                }
+            }
+        }
+        
+        if(count==5){
+            i=j;
+            count1++;
+        }
+        else{
+            data[k++]=res[i];
+        }
+    }
+    data[strlen(res)-count1]='\0';
+    printf("Orignal Data recieved: %s\n",data);
+}
+
+int main() {
+    char data[s];
+    char data1[s];
+    printf("Enter the data: ");
+    scanf("%s",&data);
+    data[strlen(data)]='\0';
+
+    //after zero --continous five 1's stuff zero.
+    int count=0;
+    int count1=0;
+    int k=0;
+    for(int i=0;i< strlen(data);i++){
+      
+  data1[k++]=data[i];
+        if(data[i]=='0'){
+            count=0;
+            for(int j=i+1;j< i+6;j++){
+                data1[k++]=data[j];
+                if(data[j]=='1'){
+                    count++;
+                    if(count==5){
+                        count1++;
+                        data1[k++]='0';
+                    }
+                }
+                else{
+                    i=j;
+                    break;
+                }
+                i=j;
+            }
+
+        }
+    }
+    data1[strlen(data)+count1]='\0';
+    printf("Data after stuffing 0's: %s \n",data1);
+
+    //flag.
+    for( int i=0;i< strlen(data1)+16;i++) {
+        if(i<8){
+            data[i]=flag[i];
+        }else if(i>strlen(data1)+7){
+            data[i]=flag[i-strlen(data1)-8];
+        }else{
+            data[i]=data1[i-8];
+        }
+    }
 
 
 
+data[strlen(data1)+16]='\0';
+    printf("Final Data to be sent: %s\n",data);
+  
+  receiver(data);
+}
 
+
+--------------------------DSSS-----------------------------------
+
+#include <stdio.h>
+#include <string.h>
+#define S 110
+
+char *org_signl(char data[], char data1[]);
+char *XNOR(char data1[], char result[]);
+char *org_dataa(char org_result[], char org_data[]);
+
+void main(){
+    char data[10];
+    char data1[S];
+    char result[S];
+    char org_result[S];
+    char org_data[10];
+    printf("Enter Data to be sent: ");
+    scanf("%s",data);
+    org_signl(data,data1);
+    printf("%s\n",data1);
+    XNOR(data1,result);
+    printf("Result: %s\n",result);
+    XNOR(result,org_result);
+    printf("Org_result: %s\n",org_result);
+    org_dataa(org_result,org_data);
+    printf("Org_Data: %s\n",org_data);
+
+}
+
+char *org_signl(char data[], char data1[]){
+    int k=0;
+    for(int i=0; i<strlen(data); i++){
+        if(data[i]=='1'){
+            for(int j=0; j<11; j++){
+                data1[k++] = '1';
+            }
+        }else{
+            for(int j=0; j<11; j++){
+                data1[k++] = '0';
+            }
+        }
+    }
+    data1[strlen(data)*11]='\0';
+    return data1;
+}
+
+char *XNOR(char data1[], char result[]){
+    char pattern[] = {'1','0','1','1','0','1','1','1','0','0','0'};
+    int l = strlen(data1)/11;
+    int k=0;
+    while(l>0){
+        for(int i=0; i<11; i++){
+            if(data1[k]==pattern[i]){
+                result[k++]='1';
+            }else{
+                result[k++]='0';
+            }
+        }
+        l--;
+    }
+    result[strlen(result)]='\0';
+    return result;
+}
+
+char *org_dataa(char org_result[], char org_data[]){
+    int flag=-1, k=0, j=0;
+    int l = strlen(org_result)/11;
+    int m=l;
+    while(l>0){
+        for(int i=0; i<11; i++){
+            if(org_result[k]=='1'){
+                flag=1;
+            }else if(org_result[k]=='0'){
+                flag=0;
+            }else{
+                flag=-1;
+            }
+            k++;
+        }
+        // printf("%d\n",flag);
+        if(flag==1){
+            org_data[j++]='1';
+        }else if(flag==0){
+            org_data[j++]='0';
+        }else{
+            printf("Something Wrong\n");
+        }
+        l--;
+    }
+    org_data[m]='\0';
+    return org_data;
+}
+
+--------------Dijkstra algorithm----------------------------------
+
+#include <stdio.h>
+#include <limits.h>
+
+#define V 6 // Maximum number of vertices in the graph
+
+// Function to find the vertex with the minimum distance value
+int minDistance(int dist[], int visited[]) {
+    int min = INT_MAX, min_index;
+
+    for (int v = 0; v < V; v++) {
+        if (visited[v] == 0 && dist[v] <= min) {
+            min = dist[v];
+            min_index = v;
+        }
+    }
+
+    return min_index;
+}
+
+// Function to print the final shortest path
+void printPath(int parent[], int j) {
+    if (parent[j] == -1)
+        return;
+
+    printPath(parent, parent[j]);
+
+    printf("%d ", j);
+}
+
+// Function to print the distance array
+void printSolution(int dist[], int n, int parent[]) {
+    printf("Vertex\t Distance\tPath\n");
+    for (int i = 1; i < V; i++) {
+        printf("%d -> %d \t %d\t\t%d ", 0, i, dist[i], 0);
+        printPath(parent, i);
+        printf("\n");
+    }
+}
+
+// Function to implement Dijkstra's algorithm
+void dijkstra(int graph[V][V], int src) {
+    int dist[V];     // Array to store the shortest distance from source to i
+    int visited[V];  // Array to keep track of visited vertices
+    int parent[V];   // Array to store the shortest path tree
+
+    // Initialize all distances as INFINITE and visited[] as false
+    for (int i = 0; i < V; i++) {
+        dist[i] = INT_MAX;
+        visited[i] = 0;
+    }
+
+    // Distance of source vertex from itself is always 0
+    dist[src] = 0;
+    parent[src] = -1; // Source vertex has no parent
+
+    // Find shortest path for all vertices
+    for (int count = 0; count < V - 1; count++) {
+        // Pick the minimum distance vertex from the set of vertices not yet visited
+        int u = minDistance(dist, visited);
+
+        // Mark the picked vertex as visited
+        visited[u] = 1;
+
+        // Update dist value of the adjacent vertices of the picked vertex
+        for (int v = 0; v < V; v++) {
+            // Update dist[v] only if it's not visited, there is an edge from u to v,
+            // and the total weight of path from src to v through u is smaller than current value of dist[v]
+            if (!visited[v] && graph[u][v] && dist[u] != INT_MAX && dist[u] + graph[u][v] < dist[v]) {
+                parent[v] = u;
+                dist[v] = dist[u] + graph[u][v];
+            }
+        }
+    }
+
+    // Print the solution
+    printSolution(dist, V, parent);
+}
+
+int main() {
+    int graph[V][V];
+
+    // Input the adjacency matrix representing the graph
+    printf("Enter the adjacency matrix (%d x %d) for the graph:\n", V, V);
+    for (int i = 0; i < V; i++) {
+        for (int j = 0; j < V; j++) {
+            scanf("%d", &graph[i][j]);
+        }
+    }
+
+    // Call Dijkstra's algorithm with source vertex 0
+    dijkstra(graph, 0);
+
+    return 0;
+}
+
+
+------------------Bellman Ford Algorithm------------------------------------
+
+#include <stdio.h>
+#include <limits.h>
+
+#define V 6 // Maximum number of vertices in the graph
+
+// Structure to represent an edge in the graph
+struct Edge {
+    int src, dest, weight;
+};
+
+// Function to find the shortest path using Bellman-Ford algorithm
+void bellmanFord(struct Edge edges[], int numEdges, int src) {
+    int dist[V]; // Array to store the shortest distance from source to i
+
+    // Initialize distance array
+    for (int i = 0; i < V; i++)
+        dist[i] = INT_MAX;
+    dist[src] = 0; // Distance from source to itself is 0
+
+    // Relax all edges |V| - 1 times
+    for (int i = 0; i < V - 1; i++) {
+        for (int j = 0; j < numEdges; j++) {
+            int u = edges[j].src;
+            int v = edges[j].dest;
+            int weight = edges[j].weight;
+            if (dist[u] != INT_MAX && dist[u] + weight < dist[v])
+                dist[v] = dist[u] + weight;
+        }
+    }
+
+    // Check for negative weight cycles
+    for (int i = 0; i < numEdges; i++) {
+        int u = edges[i].src;
+        int v = edges[i].dest;
+        int weight = edges[i].weight;
+        if (dist[u] != INT_MAX && dist[u] + weight < dist[v]) {
+            printf("Graph contains negative weight cycle\n");
+            return;
+        }
+    }
+
+    // Print shortest paths
+    printf("Vertex\t Distance from Source\n");
+    for (int i = 0; i < V; i++)
+        printf("%d\t %d\n", i, dist[i]);
+}
+
+int main() {
+    int numEdges;
+    printf("Enter the number of edges: ");
+    scanf("%d", &numEdges);
+
+    struct Edge edges[numEdges];
+    printf("Enter source, destination, and weight for each edge:\n");
+    for (int i = 0; i < numEdges; i++) {
+        printf("Edge %d: ", i + 1);
+        scanf("%d %d %d", &edges[i].src, &edges[i].dest, &edges[i].weight);
+    }
+
+    int src;
+    printf("Enter the source vertex: ");
+    scanf("%d", &src);
+
+    bellmanFord(edges, numEdges, src);
+
+    return 0;
+}
 
