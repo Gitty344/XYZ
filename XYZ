@@ -1950,3 +1950,56 @@ int main() {
     return 0;
 }
 
+---------------------FHSS-----------------------------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define NUM_CHANNELS 10
+#define DATA_SIZE 10
+
+// Function to perform Frequency Hopping Spread Spectrum (FHSS)
+void fhss(char data[], int num_channels) {
+    char channels[NUM_CHANNELS][DATA_SIZE]; // Array to represent channels
+    int current_channel = 0; // Initialize current channel to 0
+
+    // Initialize all channels with empty data
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+        memset(channels[i], 0, DATA_SIZE * sizeof(char));
+    }
+
+    // Transmit data by hopping through channels
+    for (int i = 0; i < strlen(data); i++) {
+        // Add data to the current channel
+        channels[current_channel][i % DATA_SIZE] = data[i];
+
+        // Move to the next channel
+        current_channel = (current_channel + 1) % num_channels;
+    }
+
+    // Print transmitted data from each channel
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+        printf("Channel %d: ", i + 1);
+        for (int j = 0; j < DATA_SIZE; j++) {
+            printf("%c ", channels[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+int main() {
+    char data[DATA_SIZE];
+
+    // Input data to be transmitted
+    printf("Enter data to transmit: ");
+    fgets(data, DATA_SIZE, stdin);
+    data[strcspn(data, "\n")] = '\0'; // Remove newline character from fgets input
+
+    // Perform FHSS with default number of channels
+    printf("Performing FHSS with default number of channels (%d):\n", NUM_CHANNELS);
+    fhss(data, NUM_CHANNELS);
+
+    return 0;
+}
+
