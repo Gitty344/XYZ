@@ -1,2014 +1,1361 @@
---------------------CRC Server--------------
+
+********1 Write C or C++ program to represent binary tree or BST using array and linked list******
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
-#define PORT 8000
-#define N strlen(crc_key)
+// Define the structure of a node
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
+};
 
-int i, j;
-int count = 0;
-char data[20];
-char crc_key[20];
-char checksum[20];
-
-void XOR()
-{
-    for(j=1; j<N; j++)
-        checksum[j] = ((checksum[j] == crc_key[j]) ? '0' : '1');
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
 }
 
-int main()
-{
-    int serversocket, clientsocket, bindstatus;
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    `   
-    int client_address_len = sizeof(clientaddress);
-
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0)
-    {
-        printf("socket failed\n");
-        return -1;
+// Function to insert a node into the BST
+struct Node* insertNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return createNode(value);
     }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0)
-    {
-        printf("binding failed\n");
-        return -1;
+    if (value < root->data) {
+        root->left = insertNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = insertNode(root->right, value);
     }
-    else
-    {
-        printf("binding is successful\n");
-    }
-
-    listen(serversocket, 3);
-    printf("Waiting for client connection...\n");
-
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if (clientsocket < 0)
-    {
-        printf("connection is rejected by server\n");
-        return -1;
-    }
-    else
-    {
-        printf("connection is accepted\n");
-    }
-
-
-    recv(clientsocket, data, sizeof(data), 0);
-    recv(clientsocket, crc_key, sizeof(crc_key), 0);
-    recv(clientsocket, checksum, sizeof(checksum), 0);
-
-
-    printf("Received data is: %s\n", data);
-
-    int data_length = strlen(data);
-
-    for(i=0; i<N; i++)
-        checksum[i] = data[i];
-
-    do{
-        if(checksum[0] == '1')
-            XOR();
-        for(j=0; j<N-1; j++)
-            checksum[j] = checksum[j+1];
-        checksum[j] = data[i++];
-    }while(i <= data_length+N-1);
-
-    for(i = 0; i<N; i++)
-    {
-        if(checksum[i] == '1')
-            count++;
-        else
-            count = 0;
-    }
-
-    char error_msg[30];
-    if(count < 0)
-    {
-        error_msg="error detected\n";
-        send(clientsocket, error_msg, sizeof(error_msg), 0);
-    }
-    else
-     {
-        error_msg="no error detected\n";
-        send(clientsocket, error_msg, sizeof(error_msg), 0);
-    }
-
-
-    close(serversocket);
-    return 0;
+    return root;
 }
 
-----------------CRC Client------------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-#define N strlen(crc_key)
-
-void XOR();
-int i, j;
-char data[20];
-char crc_key[20];
-char checksum[20];
-
-int main()
-{
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(clientsocket<0)
-    {
-        printf("socket creation failed\n");
-        return -1;
+// Function to create BST using array
+struct Node* createBSTFromArray(int arr[], int size) {
+    struct Node* root = NULL;
+    for (int i = 0; i < size; i++) {
+        root = insertNode(root, arr[i]);
     }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if(connection_status < 0)
-    {
-        printf("connection failed\n");
-        return -1;
-    }
-    else
-        printf("connection established\n");
-
-
-    printf("Enter the data to be transmitted: ");
-    scanf("%s", data);
-
-    printf("Enter the CRC key: ");
-    scanf("%s", crc_key);
-
-    int data_length = strlen(data);
-
-    for(i = data_length; i<data_length+N-1; i++)
-        data[i] = '0';
-    printf("new data = %s\n", data);
-
-    for(i = 0; i<N; i++)
-        checksum[i] = data[i];
-    
-    do
-    {
-        if(checksum[0] == '1')
-            XOR();
-        for(j = 0; j<N-1; j++)
-            checksum[j] = checksum[j+1];
-        checksum[j] = data[i++];
-    } while (i <= data_length+N-1);
-
-    printf("The check value is: %s\n", checksum);
-    
-    for(i=data_length; i<data_length+N-1; i++)
-        data[i] = checksum[i-data_length];
-    
-    printf("The final data to be sent is: %s\n", data);
-
-    send(clientsocket, data, sizeof(data), 0);
-    send(clientsocket, crc_key, sizeof(crc_key), 0);
-    send(clientsocket, checksum, sizeof(checksum), 0);
-
-    char error_msg[30];
-    recv(clientsocket, error_msg, sizeof(error_msg), 0);
-    printf("Error status: %s\n", error_msg);
-
-
-    close(clientsocket);
-
-    return 0;
+    return root;
 }
 
-void XOR()
-{
-    for(j=1; j<N; j++)
-        checksum[j] = ((checksum[j] == crc_key[j]) ? '0' : '1');
+// Function to print inorder traversal of BST
+void inorderTraversal(struct Node* root) {
+    if (root != NULL) {
+        inorderTraversal(root->left);
+        printf("%d ", root->data);
+        inorderTraversal(root->right);
+    }
 }
-
---------------------------------------------------------------------
-
----------------Stop and Wait Server--------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-
-int i = 0, j = 0;
 
 int main() {
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    int client_address_len = sizeof(clientaddress);
-
-    int serversocket;
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0) {
-        perror("socket failed");
-        return -1;
+    int n;
+    printf("Enter the number of elements in the array: ");
+    scanf("%d", &n);
+    int arr[n];
+    printf("Enter the elements of the array:\n");
+    for (int i = 0; i < n; i++) {
+        scanf("%d", &arr[i]);
     }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int bindstatus;
-    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0) {
-        perror("binding failed");
-        return -1;
-    } else {
-        printf("binding is successful\n");
-    }
-
-    listen(serversocket, 3);
-    printf("Waiting for client connection...\n");
-
-    int clientsocket;
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if (clientsocket < 0) {
-        perror("connection is rejected by server");
-        return -1;
-    } else
-        printf("connection is accepted\n");
-
-    int Tt, Tp, datasize, timer = 0;
-    recv(clientsocket, &Tt, sizeof(Tt), 0);
-    recv(clientsocket, &Tp, sizeof(Tp), 0);
-    recv(clientsocket, &datasize, sizeof(datasize), 0);
-
-    int data[datasize];
-
-    while (i < datasize) {
-        recv(clientsocket, &data[i], sizeof(data[i]), 0);
-        recv(clientsocket, &timer, sizeof(timer), 0);
-        printf("Data packet with data %d received at %d\n", data[i], timer);
-
-        timer = timer + Tt + Tp;
-        send(clientsocket, &timer, sizeof(timer), 0);
-
-        i++;
-    }
-
-    close(serversocket);
-
-    return 0;
-}
-
--------------------Stop and wait client-----------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-
-int i = 0, j = 0;
-
-int main() {
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientsocket < 0) {
-        perror("socket creation failed");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (connection_status < 0) {
-        perror("connection failed");
-        return -1;
-    } else
-        printf("connection established\n");
-
-    int Tt, Tp, datasize;
-    printf("Enter the Transmission time and propagation time: ");
-    scanf("%d %d", &Tt, &Tp);
-    send(clientsocket, &Tt, sizeof(Tt), 0);
-    send(clientsocket, &Tp, sizeof(Tp), 0);
-
-    printf("Enter the size of data to be transmitted: ");
-    scanf("%d", &datasize);
-    send(clientsocket, &datasize, sizeof(datasize), 0);
-
-    int data[datasize];
-    printf("Enter the data bits: ");
-    for (i = 0; i < datasize; i++) {
-        scanf("%d", &data[i]);
-    }
-
-    int timer = 0;
-    for (i = 0; i < datasize; i++) {
-        timer = timer + Tt + Tp;
-        printf("%d\n", timer);
-        send(clientsocket, &data[i], sizeof(data[i]), 0);
-        send(clientsocket, &timer, sizeof(timer), 0);
-
-        recv(clientsocket, &timer, sizeof(timer), 0);
-        printf("Ack received at %d ms\n", timer);
-    }
-
-    close(clientsocket);
-
-    return 0;
-}
-
-
---------------------SLiding Window-----------------------------
---------------------selective repeat server--------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-#define N 100 // Assuming N is the window size for selective repeat
-
-int main() {
-    int serversocket, clientsocket, bindstatus;
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    int client_address_len = sizeof(clientaddress);
-
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0) {
-        printf("socket failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0) {
-        printf("binding failed\n");
-        return -1;
-    } else {
-        printf("binding is successful\n");
-    }
-
-    listen(serversocket, 100);
-    printf("Waiting for client connection...\n");
-
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if (clientsocket < 0) {
-        printf("connection is rejected by server\n");
-        return -1;
-    } else {
-        printf("connection is accepted\n");
-    }
-
-    char data[20];
-    printf("Enter the data: ");
-    scanf("%s", data);
-
-    int count = 0, j = 1;
-    int k = strlen(data);
-    int window_start = 0;
-    int window_end = N - 1;
-
-    send(clientsocket, &k, sizeof(k), 0);
-
-    while (window_start < k) {
-        for (int i = window_start; i <= window_end && i < k; i++) {
-            send(clientsocket, &data[i], sizeof(data[i]), 0);
-        }
-
-        for (int i = window_start; i <= window_end && i < k; i++) {
-            recv(clientsocket, &count, sizeof(count), 0);
-            if (count == j) {
-                printf("\nAcknowledgment received for bit %d", j);
-                j++;
-                window_start++;
-                window_end++;
-            } else {
-                printf("\nAcknowledgment not received for bit %d, resending", j);
-                j++;
-                count++;
-            }
-        }
-    }
-
-    close(serversocket);
-    return 0;
-}
-
------------------------selective repeat client---------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-#define N 100 // Assuming N is the window size for selective repeat
-
-int main() {
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientsocket < 0) {
-        printf("socket creation failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (connection_status < 0) {
-        printf("connection failed\n");
-        return -1;
-    } else
-        printf("connection established\n");
-
-    int count = 0;
-    char data[20];
-    int k;
-
-    recv(clientsocket, &k, sizeof(k), 0);
-
-    int window_start = 0;
-    int window_end = N - 1;
-
-    while (window_start < k) {
-        for (int i = window_start; i <= window_end && i < k; i++) {
-            recv(clientsocket, &data[i], sizeof(data[i]), 0);
-            printf("Received bit %d from server\n", i + 1);
-        }
-
-        for (int i = window_start; i <= window_end && i < k; i++) {
-            int x;
-            do {
-                printf("+ve ack - 1/-ve ack - 2: ");
-                scanf("%d", &x);
-
-                if (x == 1) {
-                    count = i + 1; // Positive acknowledgment received
-                    send(clientsocket, &count, sizeof(count), 0);
-                    window_start++;
-                    break; // Exit the loop after sending acknowledgment
-
-                } else if (x == 2) {
-                    // Negative acknowledgment received or invalid input
-                    send(clientsocket, &count, sizeof(count), 0);
-                    // Continue to the next bit without waiting for acknowledgment
-                    break;
-
-                } else {
-                    printf("Invalid input. Please enter 1 or 2.\n");
-                }
-            } while (1); // Keep asking for acknowledgment until valid input is received
-        }
-    }
-
-    printf("\nData received from the server is %s \n", data);
-
-    close(clientsocket);
-    return 0;
-}
-
-------------------------GO Back N server------------------------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-
-int i = 0, j = 0;
-
-int main()
-{
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    int client_address_len = sizeof(clientaddress);
-
-    int serversocket;
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0)
-    {
-        printf("Socket failed");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int bindstatus;
-    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0)
-    {
-        printf("Binding failed\n");
-        return -1;
-    }
-    else
-    {
-        printf("Binding is successful\n");
-    }
-
-    listen(serversocket, 3);
-    printf("Waiting for client connection...\n");
-
-    int clientsocket;
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if (clientsocket < 0)
-    {
-        printf("Connection is rejected by server\n");
-        return -1;
-    }
-    else
-        printf("Connection is accepted\n");
-
-    int Tt, Tp, N, datasize, lost_packet;
-    recv(clientsocket, &Tt, sizeof(Tt), 0);
-    recv(clientsocket, &Tp, sizeof(Tp), 0);
-    recv(clientsocket, &N, sizeof(N), 0);
-    recv(clientsocket, &datasize, sizeof(datasize), 0);
-    recv(clientsocket, &lost_packet, sizeof(lost_packet), 0);
-
-    int timer = 0;
-
-    while (i < datasize)
-    {
-        if (i != lost_packet - 1)
-        {
-            recv(clientsocket, &timer, sizeof(timer), 0);
-            printf("Data packet %d received at time %d ms\n", i, timer);
-
-            timer = timer + Tt + Tp;
-            send(clientsocket, &timer, sizeof(timer), 0);
-        }
-        else
-        {
-            printf("Data packet %d lost during transmission\n", i);
-        }
-        i++;
-    }
-
-    close(serversocket);
-
-    return 0;
-}
-
----------------------GO Back N Client-----------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-
-int i = 0, j = 0;
-
-int main()
-{
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientsocket < 0)
-    {
-        printf("Socket creation failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (connection_status < 0)
-    {
-        printf("Connection failed\n");
-        return -1;
-    }
-    else
-        printf("Connection established\n");
-
-     
-    int Tt, Tp, N, datasize;
-    printf("Enter the transmission time and propagation time in ms: ");
-    scanf("%d %d", &Tt, &Tp);    
-
-    send(clientsocket, &Tt, sizeof(Tt), 0);
-    send(clientsocket, &Tp, sizeof(Tp), 0);
-
-    printf("Enter the value of N (sender's window): ");
-    scanf("%d", &N);
-    send(clientsocket, &N, sizeof(N), 0);
-
-    printf("Enter the size of data to be transmitted: ");
-    scanf("%d", &datasize);
-    send(clientsocket, &datasize, sizeof(datasize), 0);
-
-    int data[datasize];
-    printf("Enter the data bits: ");
-    for (int i = 0; i < datasize; i++) {
-        scanf("%d", &data[i]);
-    }
-
-    int lost_packet;
-    printf("Enter the packet to be lost while transmission: ");
-    scanf("%d", &lost_packet);
-    send(clientsocket, &lost_packet, sizeof(lost_packet), 0);
-
-    int i = 0;
-    int timer = 0, timer1 = 0;
-
-    while (i < datasize) {
-        int x = 0;
-
-        for (int j = i; j < i + N && j < datasize; j++) {
-            timer = timer + Tt;
-            printf("Data packet %d sent at time %d ms\n", j, timer);
-
-            timer1 = timer + Tp;
-            send(clientsocket, &timer1, sizeof(timer1), 0);
-        }
-
-        for (int j = i; j < i + N && j < datasize; j++) {
-            if (j != lost_packet - 1) {
-                int timer;
-                recv(clientsocket, &timer, sizeof(&timer),0);
-                printf("Acknowledgment for packet %d received at time %d ms\n", j, timer);
-                x++;
-            } else {
-                printf("Acknowledgment for packet %d not received\n", j);
-                printf("Retransmitting window\n");
-
-                // Retransmit all unacknowledged packets in the current window
-                for (int k = i; k < i + x; k++) {
-                    send(clientsocket,&k,sizeof(k),0);
-                }
-
-                // Update timer for the lost packet
-                int retransmitTimer = (j + 1) * Tp;
-                printf("Retransmitted packet %d at time %d ms\n", j, retransmitTimer);
-
-                // Move the window to the next unacknowledged packet
-                i = j + 1;
-
-                // Break from the loop since retransmission occurred
-                break;
-            }
-        }
-        
-        // Move the window to the next set of packets
-        i += x;
-    }
-
-    // Close the socket
-    close(clientsocket);
-
-    return 0;
-}
-
-------------Stop and Wait ARQ server-----------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-#define N 
-
-
-
-int main()
-{
-    int serversocket, clientsocket, bindstatus;
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    int client_address_len = sizeof(clientaddress);
-
-    serversocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serversocket < 0)
-    {
-        printf("socket failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    bindstatus = bind(serversocket, (const struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0)
-    {
-        printf("binding failed\n");
-        return -1;
-    }
-    else
-    {
-        printf("binding is successful\n");
-    }
-
-    listen(serversocket,100);
-    printf("Waiting for client connection...\n");
-
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if (clientsocket < 0)
-    {
-        printf("connection is rejected by server\n");
-        return -1;
-    }
-    else
-    {
-        printf("connection is accepted\n");
-    }
-
- char data[20];
-    printf("Enter the data: ");
-    scanf("%s", data);
-
-    int count = 0, j = 1;
-    int k = strlen(data);
-
-    send(clientsocket, &k, sizeof(k), 0);
-
-    for(int i = 0; i < k; i++)
-    {   send(clientsocket, &data[i], sizeof(data[i]), 0);
-        recv(clientsocket, &count, sizeof(count), 0);
-        //j++; working partially, keep if nothing works otherwise j=1 and 2 j++ after printf in if 
-        if(count == j)
-        {   
-            printf("\nAcknowledgement received for bit %d", j);
-            j++;
-        }
-        else if (count!=j)
-        {
-            printf("\nAcknowledgement not received for bit %d resending", j);
-            j++;
-        }
     
-    }
-    close(serversocket);
-    return 0;  
-}
-
----------------Stop and wait ARQ client------------------------------
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-#define N 
-
-
-int main()
-{
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(clientsocket<0)
-    {
-        printf("socket creation failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if(connection_status < 0)
-    {
-        printf("connection failed\n");
-        return -1;
-    }
-    else
-        printf("connection established\n");
-
-    int count = 0;
-    char data[20];
-    int k;
-
-    recv(clientsocket, &k, sizeof(k), 0);
-
-    for (int i = 0; i < k; i++) {
-        recv(clientsocket, &data[i], sizeof(data[i]), 0);
-        printf("Received bit %d from server\n", i + 1);
-
-        int x;
-        do {
-            printf("+ve ack - 1/-ve ack - 2: ");
-            scanf("%d", &x);
-
-            if (x == 1) {
-                count++; 
-                send(clientsocket, &count, sizeof(count), 0);
-                break; // Exit the loop after sending acknowledgment
-
-            } else if (x == 2) {
-                
-                send(clientsocket, &count, sizeof(count), 0);
-                count++;
-                // Continue to the next bit without waiting for acknowledgment
-                break;
-            } else {
-                printf("Invalid input. Please enter 1 or 2.\n");
-            }
-        } while (1); // Keep asking for acknowledgment until valid input is received
-    }
-
-    printf("\nData received from the server is %s \n", data);
-
-    close(clientsocket);
-    return 0;
-}
-
--------------------------------------Hamming without socket-----------------------------
--------------------------------------use -lm while executring---------------------------
-
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#define N 50
-
-char *fill_parity(char data[],int p);
-char* error(char data[]);
-void receive(char data[]);
-void reverseString(char *str);
-
-int main(){
-    char data[N];
-    int choice;
-    printf("------------------------------------------------------------\n");
-    do{
-    printf("Enter Data: ");
-    scanf("%s",data);
-    data[strlen(data)] ='\0';
-    reverseString(data);
-    //To calculate number of parity bits
-    int data_sz = strlen(data);
-    int p=1;
-    while(1){
-        if(pow(2,p)>= data_sz+p+1){
-            break;
-        }
-        p++;
-    }
-    printf("Required number of Parity Bits: %d\n",p);
-
-    //new string array for storing data with parity bits
-    int j = 0, k=0, l=0;
-    char data1 [N];
-    for(j=0; j<data_sz+p; j++){
-
-    if(j+1 == pow(2,k)){
-        data1[j]= 'p'; //p->null value
-        k++;
-    }else{
-        data1[j] = data[l];
-        l++;
-    }
-    }
-    data1[data_sz+p]='\0';
-    printf("Data with parity bits: %s\n",data1);
-    printf("------------------------------------------------------------\n");
-
-    fill_parity(data1,p);
-    printf("------------------------------------------------------------\n");
-
-    printf("1.Enter [a] to pass data without error.\n2.Enter [b] to pass data with error.\n");
-    char ch;
-    scanf(" %c",&ch);
-
-    switch(ch){
-        case 'a': receive(data1);
-        break;
-        case 'b': error(data1); receive(data1);
-        break;
-        default:printf("Wrong Input.");
-    }
-
-    printf("\nDo you want to continue: [yes(1)/no(0)] ->");
-    scanf("%d",&choice);
-     if(choice == 0){
-    printf("\n-----------------------Thank You!---------------------------\n\n");
-    }else{
-    printf("------------------------------------------------------------\n\n");
-    }
-    }while(choice==1);
-    return 0;
-}
-
-char *fill_parity(char data1[],int p){
-    //filling null parity positions
-    char q[N];
-    while(p>=1){
-        int count = 0, a=0;
-        int i = pow(2,p-1);
-        int z = i;
-        for(i=z-1; i<strlen(data1); i++){
-            if(count == z){
-                i=i+z-1;
-                count = 0;
-            }else{
-            q[a] = data1[i];
-            a++;
-            count ++;
-            }
-        }
-        q[a] = '\0';
-        printf("For Parity at %dth: %s\n",z,q);
-        count = 0;
-        for(i=0; i<strlen(q); i++){
-            if(q[i]=='1'){
-                count++;
-            }
-        }
-        if(count%2 == 0){
-            data1[z-1] = '0';
-        }
-        else{
-            data1[z-1] = '1';
-        }
-        printf("Data: %s\n",data1);
-        p--;
-    }
-    return data1;
-}
-
-char* error(char data[]){
-    printf("------------------------------------------------------------\n");
-
-    printf("Final data: ");
-    for(int d=0; d<strlen(data); d++){
-        printf("%c",data[d]);
-    }
+    struct Node* rootFromArray = createBSTFromArray(arr, n);
+    printf("Inorder traversal of BST created from array: ");
+    inorderTraversal(rootFromArray);
     printf("\n");
 
-//    printf("Enter position for switching a bit:");
-    int pos;
-    //pos=rand()%strlen(data);
-//    scanf("%d",&pos);
-    if(data[pos-1]=='0'){
-        data[pos-1]='1';
-    }else{
-        data[pos-1]='0';
+    // Creating BST using linked list and inserting nodes based on user input
+    struct Node* rootFromList = NULL;
+    printf("Enter the number of elements you want to insert into the BST: ");
+    scanf("%d", &n);
+    printf("Enter the elements:\n");
+    for (int i = 0; i < n; i++) {
+        int value;
+        scanf("%d", &value);
+        rootFromList = insertNode(rootFromList, value);
     }
-    printf("Data after fliping a bit: %s\n",data);
-    printf("------------------------------------------------------------\n");
-    return data;
-}
+    printf("Inorder traversal of BST created from user input: ");
+    inorderTraversal(rootFromList);
+    printf("\n");
 
-void receive(char data[]){
-    int i=0;
-    char q[N];
-    int arr[N];
-    while(1){
-    if(strlen(data) <= pow(2,i)){
-        break;
-    }
-    i++;
-    }
-    int y = i;
-    while(i!=0){
-        int a=0, count=0;
-        int s = pow(2,i-1);
-        for(int j=s-1; j<strlen(data); j++){
-            if(count == s){
-                j=j+s-1;
-                count = 0;
-            }else{
-            q[a] = data[j];
-            a++;
-            count ++;
-            }
-        }
-        q[a] = '\0';
-        printf("For Parity at %dth: %s\n",s,q);
-        count=0;
-        for(int k=1; k<strlen(q); k++){
-            if(q[k]=='1'){
-                count++;
-            }
-        }
-        if(count%2==0 && q[0]=='0'){
-            arr[i-1]=0;
-        }else if(count%2!=0 && q[0]=='1'){
-            arr[i-1]=0;
-        }
-        else{
-            arr[i-1]=1;
-        }
-
-        i--;
-    }
-    int flag = 1 ;
-    int sum=0;
-    printf("Resultant check Array of :");
-    for(int e=y-1; e>=0; e--){
-        printf("%d",arr[e]);
-        if(arr[e]==1){
-            flag=0;
-            sum+= pow(2,e);
-        }
-    }
-    printf("\n------------------------------------------------------------\n");
-    if(flag==0){
-        printf("!!! Data Rejected !!!\n");
-        printf("error at pos-->%d\n",sum);
-    }else{
-        printf("!!! Data Accepted !!!\n");
-    }
-    printf("------------------------------------------------------------\n");
-}
-
-void reverseString(char *str) {
-    int length = strlen(str);
-    int start = 0;
-    int end = length - 1;
-
-    while (start < end) {
-        // Swap characters at the start and end indices
-        char temp = str[start];
-        str[start] = str[end];
-        str[end] = temp;
-
-        // Move indices towards the center
-        start++;
-        end--;
-    }
+    return 0;
 }
 
 
-
----------------------------Hamming with Socket----------------------------------
----------------------------Hamming Server---------------------------------------
+**********2 Write C or C++ program to implement  recursive tree traversal (inorder, preorder and post order)***********
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include<math.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
-#define PORT 8000
+// Define the structure of a node
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
+};
 
-int i, j;
-char data[20], final_data[20], rec_data[20];
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
 
-int parity_check(int *parity_index, int parity_index_size, char *rec_data)
-{
-    int x;
-    int count = 0;
-    for(i = 0; i < parity_index_size; i++)
-    {
-        int index = parity_index[i];
-        if(rec_data[index]== '1')
-            count++;
+// Function to insert a node into the BST
+struct Node* insertNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return createNode(value);
+    }
+    if (value < root->data) {
+        root->left = insertNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = insertNode(root->right, value);
+    }
+    return root;
+}
+
+// Function for inorder traversal
+void inorderTraversal(struct Node* root) {
+    if (root != NULL) {
+        inorderTraversal(root->left);
+        printf("%d ", root->data);
+        inorderTraversal(root->right);
+    }
+}
+
+// Function for preorder traversal
+void preorderTraversal(struct Node* root) {
+    if (root != NULL) {
+        printf("%d ", root->data);
+        preorderTraversal(root->left);
+        preorderTraversal(root->right);
+    }
+}
+
+// Function for postorder traversal
+void postorderTraversal(struct Node* root) {
+    if (root != NULL) {
+        postorderTraversal(root->left);
+        postorderTraversal(root->right);
+        printf("%d ", root->data);
+    }
+}
+
+int main() {
+    int n;
+    printf("Enter the number of elements you want to insert into the BST: ");
+    scanf("%d", &n);
+
+    struct Node* root = NULL;
+
+    printf("Enter the elements:\n");
+    for (int i = 0; i < n; i++) {
+        int value;
+        scanf("%d", &value);
+        root = insertNode(root, value);
     }
 
-    if(count % 2 != 0)
-        x = 1;
-    else
-        x = 0;
+    printf("Inorder traversal: ");
+    inorderTraversal(root);
+    printf("\n");
+
+    printf("Preorder traversal: ");
+    preorderTraversal(root);
+    printf("\n");
+
+    printf("Postorder traversal: ");
+    postorderTraversal(root);
+    printf("\n");
+
+    return 0;
+}
+
+
+***************3 Write C or C++ program to demonstrate various tree operations (count number of nodes, leaf nodes, printing leaf nodes, height of tree, mirror image of the tree)****
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// Define the structure of a node
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
+};
+
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
+
+// Function to insert a node into the binary search tree
+struct Node* insertNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return createNode(value);
+    }
+    if (value < root->data) {
+        root->left = insertNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = insertNode(root->right, value);
+    }
+    return root;
+}
+
+// Function to count the number of nodes in the tree
+int countNodes(struct Node* root) {
+    if (root == NULL) {
+        return 0;
+    }
+    return 1 + countNodes(root->left) + countNodes(root->right);
+}
+
+// Function to count the number of leaf nodes in the tree
+int countLeafNodes(struct Node* root) {
+    if (root == NULL) {
+        return 0;
+    }
+    if (root->left == NULL && root->right == NULL) {
+        return 1;
+    }
+    return countLeafNodes(root->left) + countLeafNodes(root->right);
+}
+
+// Function to print the leaf nodes of the tree
+void printLeafNodes(struct Node* root) {
+    if (root == NULL) {
+        return;
+    }
+    if (root->left == NULL && root->right == NULL) {
+        printf("%d ", root->data);
+    }
+    printLeafNodes(root->left);
+    printLeafNodes(root->right);
+}
+
+// Function to calculate the height of the tree
+int heightOfTree(struct Node* root) {
+    if (root == NULL) {
+        return -1;
+    }
+    int leftHeight = heightOfTree(root->left);
+    int rightHeight = heightOfTree(root->right);
+    return 1 + (leftHeight > rightHeight ? leftHeight : rightHeight);
+}
+
+// Function to swap left and right subtrees (mirror image)
+void mirrorTree(struct Node* root) {
+    if (root == NULL) {
+        return;
+    }
+    struct Node* temp = root->left;
+    root->left = root->right;
+    root->right = temp;
+    mirrorTree(root->left);
+    mirrorTree(root->right);
+}
+
+// Function to deallocate memory of the tree
+void freeTree(struct Node* root) {
+    if (root == NULL) {
+        return;
+    }
+    freeTree(root->left);
+    freeTree(root->right);
+    free(root);
+}
+
+int main() {
+    int n;
+    printf("Enter the number of elements you want to insert into the BST: ");
+    scanf("%d", &n);
+
+    struct Node* root = NULL;
+
+    printf("Enter the elements:\n");
+    for (int i = 0; i < n; i++) {
+        int value;
+        scanf("%d", &value);
+        root = insertNode(root, value);
+    }
+
+    printf("Number of nodes in the tree: %d\n", countNodes(root));
+    printf("Number of leaf nodes in the tree: %d\n", countLeafNodes(root));
+    printf("Leaf nodes of the tree: ");
+    printLeafNodes(root);
+    printf("\n");
+    printf("Height of the tree: %d\n", heightOfTree(root));
+
+    // Creating mirror image of the tree
+    mirrorTree(root);
+    printf("Mirror image of the tree created.\n");
+
+    // Freeing memory
+    freeTree(root);
+
+    return 0;
+}
+
+**********************4 Write C or C++ program to implement  non-recursive tree traversal (inorder, preorder and post order)*************************
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// Define the structure of a node
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
+};
+
+// Define a stack structure for traversal
+struct StackNode {
+    struct Node* node;
+    struct StackNode* next;
+};
+
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
+
+// Function to push a node onto the stack
+void push(struct StackNode** top, struct Node* node) {
+    struct StackNode* newNode = (struct StackNode*)malloc(sizeof(struct StackNode));
+    newNode->node = node;
+    newNode->next = *top;
+    *top = newNode;
+}
+
+// Function to pop a node from the stack
+struct Node* pop(struct StackNode** top) {
+    if (*top == NULL) {
+        return NULL;
+    }
+    struct Node* poppedNode = (*top)->node;
+    struct StackNode* temp = *top;
+    *top = (*top)->next;
+    free(temp);
+    return poppedNode;
+}
+
+// Function to check if the stack is empty
+int isEmpty(struct StackNode* top) {
+    return top == NULL;
+}
+
+// Function for inorder traversal (non-recursive)
+void inorderTraversal(struct Node* root) {
+    struct StackNode* stack = NULL;
+    struct Node* current = root;
+
+    while (current != NULL || !isEmpty(stack)) {
+        while (current != NULL) {
+            push(&stack, current);
+            current = current->left;
+        }
+        current = pop(&stack);
+        printf("%d ", current->data);
+        current = current->right;
+    }
+}
+
+// Function for preorder traversal (non-recursive)
+void preorderTraversal(struct Node* root) {
+    if (root == NULL) {
+        return;
+    }
+    struct StackNode* stack = NULL;
+    push(&stack, root);
+
+    while (!isEmpty(stack)) {
+        struct Node* current = pop(&stack);
+        printf("%d ", current->data);
+        if (current->right != NULL) {
+            push(&stack, current->right);
+        }
+        if (current->left != NULL) {
+            push(&stack, current->left);
+        }
+    }
+}
+
+// Function for postorder traversal (non-recursive)
+void postorderTraversal(struct Node* root) {
+    if (root == NULL) {
+        return;
+    }
+    struct StackNode* stack1 = NULL;
+    struct StackNode* stack2 = NULL;
+    push(&stack1, root);
+
+    while (!isEmpty(stack1)) {
+        struct Node* current = pop(&stack1);
+        push(&stack2, current);
+
+        if (current->left != NULL) {
+            push(&stack1, current->left);
+        }
+        if (current->right != NULL) {
+            push(&stack1, current->right);
+        }
+    }
+
+    while (!isEmpty(stack2)) {
+        printf("%d ", pop(&stack2)->data);
+    }
+}
+
+int main() {
+    int n;
+    printf("Enter the number of elements you want to insert into the BST: ");
+    scanf("%d", &n);
+
+    struct Node* root = NULL;
+
+    printf("Enter the elements:\n");
+    for (int i = 0; i < n; i++) {
+        int value;
+        scanf("%d", &value);
+        root = createNode(value);
+    }
+
+    printf("Inorder traversal (non-recursive): ");
+    inorderTraversal(root);
+    printf("\n");
+
+    printf("Preorder traversal (non-recursive): ");
+    preorderTraversal(root);
+    printf("\n");
+
+    printf("Postorder traversal (non-recursive): ");
+    postorderTraversal(root);
+    printf("\n");
+
+    return 0;
+}
+
+*****************5 Write C/C++ program to check whether the tree is balanced or not and tree is AVL or not. Also your code should tell which rotation case is required if tree is imbalanced. show all rotations cases. input should be user choice.
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// Define the structure of a node
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
+};
+
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
+
+// Function to find the height of a tree
+int height(struct Node* root) {
+    if (root == NULL) {
+        return 0;
+    }
+    int leftHeight = height(root->left);
+    int rightHeight = height(root->right);
+    return (leftHeight > rightHeight ? leftHeight : rightHeight) + 1;
+}
+
+// Function to check if a tree is balanced
+int isBalanced(struct Node* root) {
+    if (root == NULL) {
+        return 1;
+    }
+    int leftHeight = height(root->left);
+    int rightHeight = height(root->right);
+    if (abs(leftHeight - rightHeight) <= 1 && isBalanced(root->left) && isBalanced(root->right)) {
+        return 1;
+    }
+    return 0;
+}
+
+// Function to check if a tree is AVL
+int isAVL(struct Node* root) {
+    if (root == NULL) {
+        return 1;
+    }
+    int leftHeight = height(root->left);
+    int rightHeight = height(root->right);
+    if (abs(leftHeight - rightHeight) <= 1 && isAVL(root->left) && isAVL(root->right)) {
+        return 1;
+    }
+    return 0;
+}
+
+// Function to perform a right rotation
+struct Node* rightRotate(struct Node* y) {
+    struct Node* x = y->left;
+    struct Node* T2 = x->right;
+
+    x->right = y;
+    y->left = T2;
 
     return x;
 }
 
-void strrev(char *rec_data)
-{
-    int len;
-    len = strlen(rec_data);
-    int start = 0, end = len - 1;
-    while(start < end)
-    {
-        char temp = rec_data[start];
-        rec_data[start] = rec_data[end];
-        rec_data[end] = temp;
-        start++;
-        end--;
-    }
+// Function to perform a left rotation
+struct Node* leftRotate(struct Node* x) {
+    struct Node* y = x->right;
+    struct Node* T2 = y->left;
+
+    y->left = x;
+    x->right = T2;
+
+    return y;
 }
 
-int main()
-{
-    char servermessage[256];
-    struct sockaddr_in serveraddress, clientaddress;
-    int client_address_len = sizeof(clientaddress);
-
-    int serversocket;
-    serversocket = socket(AF_INET, SOCK_STREAM, 0); 
-    if(serversocket < 0)
-    {
-        printf("socket failed");
-        return -1;
+// Function to determine which rotation case is required
+struct Node* balanceTree(struct Node* root) {
+    int balanceFactor = height(root->left) - height(root->right);
+    if (balanceFactor > 1) {
+        if (height(root->left->left) >= height(root->left->right)) {
+            // Left-Left Case
+            return rightRotate(root);
+        } else {
+            // Left-Right Case
+            root->left = leftRotate(root->left);
+            return rightRotate(root);
+        }
     }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int bindstatus;
-    bindstatus = bind(serversocket, (const struct sockaddr*)&serveraddress, sizeof(serveraddress));
-    if (bindstatus < 0)
-    {
-        printf("binding failed\n");
-        return -1;
+    if (balanceFactor < -1) {
+        if (height(root->right->right) >= height(root->right->left)) {
+            // Right-Right Case
+            return leftRotate(root);
+        } else {
+            // Right-Left Case
+            root->right = rightRotate(root->right);
+            return leftRotate(root);
+        }
     }
-    else
-    {
-        printf("binding is successful\n");
-    }
-
-
-    listen(serversocket, 3);
-    printf("Waiting for client connection...\n");
-
-    int clientsocket;
-    clientsocket = accept(serversocket, (struct sockaddr *)&clientaddress, (socklen_t *)&client_address_len);
-    if(clientsocket<0)
-    {
-        printf("connection is rejected by server\n");
-        return -1;
-    } 
-    else
-        printf("connection is accepted\n");
-
-    recv(clientsocket, final_data, sizeof(final_data), 0);
-    printf("Received data: %s\n", final_data);
-
-    printf("Enter the data received: ");
-    scanf("%s", rec_data);
-
-    strrev(rec_data);
-
-    int parity_index1[] = {0, 2, 4, 6, 8, 10};
-    int parity_index2[] = {1, 2, 5, 6, 9, 10};
-    int parity_index3[] = {3, 4, 5, 6};
-    int parity_index4[] = {7, 8, 9, 10};
-
-    int parity_index1_size = sizeof(parity_index1) / sizeof(parity_index1[0]);
-    int parity_index2_size = sizeof(parity_index2) / sizeof(parity_index2[0]);
-    int parity_index3_size = sizeof(parity_index3) / sizeof(parity_index3[0]);
-    int parity_index4_size = sizeof(parity_index4) / sizeof(parity_index4[0]);
-    
-    char parity_results[4];
-
-    parity_results[3] = parity_check(parity_index1, parity_index1_size, rec_data);
-    parity_results[2] = parity_check(parity_index2, parity_index2_size, rec_data);
-    parity_results[1] = parity_check(parity_index3, parity_index3_size, rec_data);
-    parity_results[0] = parity_check(parity_index4, parity_index4_size, rec_data);
-
-    printf("Parity check results: P8: %d, P4: %d, P2: %d, P1: %d\n", parity_results[0], parity_results[1], parity_results[2], parity_results[3]);
-
-    int sum = 0;
-    for(i = 0; i < 4; i++)
-    {
-        int y = sizeof(parity_results) - (i+1);
-        sum = sum + parity_results[i]*pow(2, y);
-    }
-
-    if(sum == 0)
-        printf("\nNo error\n");
-    else
-        printf("\nError in bit %d\n", sum);
-
-    close(serversocket);
-
-    return 0;
+    return root;
 }
 
--------------------------------Hamming Client---------------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include<math.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#define PORT 8000
-
-int i, j;
-char data[20], final_data[20], rec_data[20];
-
-void even_parity(int *parity_index, int parity_index_size, int x, char *final_data)
-{
-    int count = 0;
-    for(i = 0; i < parity_index_size; i++)
-    {
-        int index = parity_index[i];
-        if(final_data[index] == '1')
-            count++;
+// Function to insert a node into the BST
+struct Node* insertNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return createNode(value);
     }
-
-    if(count % 2 != 0)
-        final_data[x] = '1';
-    else
-        final_data[x] = '0';
-
-    printf("Final string: %s\n", final_data);
-}
-
-void strrev(char *rec_data)
-{
-    int len;
-    len = strlen(rec_data);
-    int start = 0, end = len - 1;
-    while(start < end)
-    {
-        char temp = rec_data[start];
-        rec_data[start] = rec_data[end];
-        rec_data[end] = temp;
-        start++;
-        end--;
+    if (value < root->data) {
+        root->left = insertNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = insertNode(root->right, value);
     }
-}
-
-
-int main()
-{
-    struct sockaddr_in serveraddress;
-
-    int clientsocket;
-    clientsocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(clientsocket<0)
-    {
-        printf("socket creation failed\n");
-        return -1;
-    }
-
-    serveraddress.sin_family = AF_INET;
-    serveraddress.sin_port = htons(PORT);
-    serveraddress.sin_addr.s_addr = INADDR_ANY;
-
-    int connection_status;
-    connection_status = connect(clientsocket, (struct sockaddr *)&serveraddress, sizeof(serveraddress));
-    if(connection_status < 0)
-    {
-        printf("connection failed\n");
-        return -1;
-    }
-    else
-        printf("connection established\n");
-
-    
-    printf("Enter the 7 bit data: ");
-    scanf("%s", data);
-
-    int data_length = strlen(data);
-
-    strrev(data);
-
-    int current_data_index = 0;
-    int final_data_index = 0;
-
-    for(i = 1; i<= data_length + 4; i++)
-    {
-        if((i & (i-1)) == 0)
-        {
-            final_data[final_data_index] = '_';
-            final_data_index++;
-        }
-        else
-        {
-            final_data[final_data_index] = data[current_data_index];
-            final_data_index++;
-            current_data_index++;
-        }
-    }
-
-    final_data[final_data_index] = '\0';
-    printf("Final data string is: %s\n", final_data);
-
-    int parity_index1[] = {0, 2, 4, 6, 8, 10};
-    int parity_index2[] = {1, 2, 5, 6, 9, 10};
-    int parity_index3[] = {3, 4, 5, 6};
-    int parity_index4[] = {7, 8, 9, 10};
-
-    int parity_index1_size = sizeof(parity_index1) / sizeof(parity_index1[0]);
-    int parity_index2_size = sizeof(parity_index2) / sizeof(parity_index2[0]);
-    int parity_index3_size = sizeof(parity_index3) / sizeof(parity_index3[0]);
-    int parity_index4_size = sizeof(parity_index4) / sizeof(parity_index4[0]);
-
-    even_parity(parity_index1, parity_index1_size, 0, final_data);
-    even_parity(parity_index2, parity_index2_size, 1, final_data);
-    even_parity(parity_index3, parity_index3_size, 3, final_data);
-    even_parity(parity_index4, parity_index4_size, 7, final_data);
-
-    strrev(final_data);
-
-    printf("The string to be transmitted is: %s\n", final_data);
-
-    send(clientsocket, final_data, sizeof(final_data), 0);
-
-    close(clientsocket);
-
-    return 0;
-}
-
---------------------------Framing Methods-----------------------------------
---------------------------Byte Count----------------------------------------
-
-#include <stdio.h>
-#include <string.h>
-#define S 20
-
-int data2[S];
-
-void sender(){
-    int data1[S];
-    int data;
-    int data_len=0, i=0;
-    int last_digit;
-    printf("Enter Data:");
-    scanf("%d",&data);
-
-    while(data!=0){
-        last_digit=data%10;
-        data=data/10;
-        data1[i++]=last_digit;
-        data_len++;
-    }
-    data2[0]=data_len+1;
-    int k=1;
-    for(int i=data_len-1; i>=0; i--){
-        data2[k++]=data1[i];
-    }
-   
- printf("Enter sender's data:");
-    for(int i=0; i<data_len+1; i++){
-        printf("%d",data2[i]);
-    }
-    printf("\n");
-}
-
-void receiver(int data[]){
-    char rev_data[S];
-    int data_sz = data[0];
-    int j=0;
-    for (int i = 1; i < data_sz; i++)
-    {
-        rev_data[j++]=data[i];
-    }
-    printf("Original received data: ");
-    for(int i=0; i<data_sz-1; i++){
-        printf("%d",rev_data[i]);
-    }
-    printf("\n");
-}
-int main(){
-    sender();
-    receiver(data2);
-}
-
--------------------------Byte Stuffing---------------------------------
-// flag bytes with byte stuffing Framing Method
-#include <stdio.h>
-#include <string.h>
-#define S 100
-
-char flag[]={'0','1','1','1','1','1','1','0'};
-char esc[]={'0','0','0','1','1','0','1','1'};
-
-void reciever(char data[]){
-    char res[S];
-    int count=0, count1=0, j=0, k=0, l=0, p=0;
-    while(1){
-        int isFlag=0, isEsc=0;
-        for(int i=0; i<8; i++){
-            if(data[j+i]==flag[i]){
-                isFlag=1;
-            }else{
-                isFlag=0;
-                break;
-            }
-        }
-        for(int m=0; m<8; m++){
-            if(data[j+m]==esc[m]){
-                isEsc=1;
-            }else{
-                isEsc=0;
-                break;
-            }
-        }
-        if(isFlag==1 && count1==0){
-            count++;
-            l++;
-        }else if(isEsc==1 && count1==0){
-      
-      count1++;
-            l++;
-        }else{
-            for(int i=0; i<8; i++){
-                res[p++]=data[j+i];
-            }
-            count1=0;
-        }
-        j+=8;
-        if(count==2){
-            break;
-        }
-    }
-    res[strlen(data)-l*8]='\0';
-    printf("Original Data is %s",res);
-}
-
-int main(){
-    char data[S];
-    char data1[S];
-    char data2[S];
-
-    printf("Enter Data:");
-    scanf("%s",data);
-    data[strlen(data)] = '\0';
-
-    //covert bits to bytes by appending leading zero's
-    int c_bytes;
-    if(strlen(data)%8 == 0){
-        c_bytes = strlen(data)/8;
-        for(int i=0; i<c_bytes*8; i++){
-            data1[i]=data[i];
-        }
-        data1[c_bytes*8]='\0';
-    }else{
-        c_bytes = (strlen(data)/8)+1;
-        for(int i=0; i<(c_bytes*8)-strlen(data); i++){
-           
- data1[i] = '0';
-        }
-        int j=0;
-        for(int i=(c_bytes*8)-strlen(data); i<c_bytes*8; i++){
-            data1[i] = data[j++]; 
-        }
-        data1[c_bytes*8]='\0';
-    }
-    printf("Data is of %d bytes.\n",c_bytes);
-    printf("Data Converted in Bytes format: %s\n",data1);
-
-    //append esc if data bits are equal to flag or esc key
-    int j=0, k=0, count1=0; 
-    int count = c_bytes;
-    while(1){
-        int isFlag=1, isEsc=1;
-        for(int i=0; i<8; i++){
-            if(data1[j+i]!=flag[i]){
-                isFlag=0;
-                break;
-            }
-        }
-        
-        for(int m=0; m<8; m++){
-            if(data1[j+m]!=esc[m]){
-                isEsc=0;
-                break;
-            }
-        }
-        if(isFlag==1 || isEsc==1){
-            count1++;
-            for(int i=0; i<8; i++){
-                data2[k++] = esc[i];
-            }
-        }
-        for(int l=0; l<8; l++){
-            data2[k++]=data1[j++];
-    
-    }
-        count--;
-        if(count==0){
-            break;
-        }
-        }
-        data2[strlen(data1)+count1*8]='\0';
-        printf("Data after inserting Esc key if data having flag or Esc byte: %s\n",data2);
-
-        //create final data by appending flag at both ends
-        for(int i=0; i<8; i++){
-            data1[i] = flag[i];
-        }
-        for(int i=0; i<strlen(data2); i++){
-            data1[8+i] = data2[i];
-        }
-         for(int i=0; i<8; i++){
-            data1[8+strlen(data2)+i] = flag[i];
-        }
-        data1[16+strlen(data2)]='\0';
-        printf("Final data to be sent: %s\n",data1);
-
-        reciever(data1);
-        return 0;
-    }
-
-
-------------------------Bit Stuffing-----------------------------------
-
-#include <stdio.h>
-#include <string.h>
-
-char flag[]={'0','1','1','1','1','1','1','0'};
-#define s 50
-
-void receiver(char data[]){
-    char res[s];
-    int z, j, k=0;
-    int count=0;
-    for(int i=0;i< strlen(data);i++){
-        count=0;
-        if(data[i]=='0'){
-            count++;
-            for( j=i+1;j<i+8;j++){
-                if(data[j]=='1'){
-                    count++;
-                }else{
-                    break;
-                }
-            }
-        }
-        if(count==7){
-            i=j;
-        }else{
-            res[k++]=data[i];
-        }
-    }
-    res[strlen(data)-16]='\0';
-    printf("Data after Flag bytes dropped by reciever: %s\n",res);
-    k=0;
-    int count1=0;
-    for(int i=0; i<strlen(res); i++){
-        count=0;
-
-        if(res[i]=='0'){
-            data[k++]= res[i];
-            for(int j=i+1;j<i+7;j++){
-                if(res[j]=='1'){
-                    data[k++]=res[j];
-                    count++;
-                }
-                else{
-                    break;
-                }
-            }
-        }
-        
-        if(count==5){
-            i=j;
-            count1++;
-        }
-        else{
-            data[k++]=res[i];
-        }
-    }
-    data[strlen(res)-count1]='\0';
-    printf("Orignal Data recieved: %s\n",data);
+    return balanceTree(root);
 }
 
 int main() {
-    char data[s];
-    char data1[s];
-    printf("Enter the data: ");
-    scanf("%s",&data);
-    data[strlen(data)]='\0';
+    struct Node* root = NULL;
 
-    //after zero --continous five 1's stuff zero.
-    int count=0;
-    int count1=0;
-    int k=0;
-    for(int i=0;i< strlen(data);i++){
-      
-  data1[k++]=data[i];
-        if(data[i]=='0'){
-            count=0;
-            for(int j=i+1;j< i+6;j++){
-                data1[k++]=data[j];
-                if(data[j]=='1'){
-                    count++;
-                    if(count==5){
-                        count1++;
-                        data1[k++]='0';
-                    }
+    int choice, value;
+    printf("1. Insert a node\n");
+    printf("2. Check if the tree is balanced\n");
+    printf("3. Check if the tree is AVL\n");
+    printf("4. Exit\n");
+
+    do {
+        printf("\nEnter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                printf("Enter the value to insert: ");
+                scanf("%d", &value);
+                root = insertNode(root, value);
+                break;
+            case 2:
+                if (isBalanced(root)) {
+                    printf("The tree is balanced.\n");
+                } else {
+                    printf("The tree is not balanced.\n");
                 }
-                else{
-                    i=j;
-                    break;
+                break;
+            case 3:
+                if (isAVL(root)) {
+                    printf("The tree is an AVL tree.\n");
+                } else {
+                    printf("The tree is not an AVL tree.\n");
                 }
-                i=j;
-            }
-
+                break;
+            case 4:
+                printf("Exiting...\n");
+                break;
+            default:
+                printf("Invalid choice! Please enter a valid choice.\n");
         }
-    }
-    data1[strlen(data)+count1]='\0';
-    printf("Data after stuffing 0's: %s \n",data1);
+    } while (choice != 4);
 
-    //flag.
-    for( int i=0;i< strlen(data1)+16;i++) {
-        if(i<8){
-            data[i]=flag[i];
-        }else if(i>strlen(data1)+7){
-            data[i]=flag[i-strlen(data1)-8];
-        }else{
-            data[i]=data1[i-8];
-        }
-    }
-
-
-
-data[strlen(data1)+16]='\0';
-    printf("Final Data to be sent: %s\n",data);
-  
-  receiver(data);
+    return 0;
 }
 
 
---------------------------DSSS-----------------------------------
-
-#include<stdio.h>
-#include<string.h>
-int main(){
-	char inpt[400];
-	char barkercode[12] = "10110111000";
-	char barkercodeNot[12]="01001000111";
-	char otpt[4400]="\0";
-	int temp1,err;
-	printf("\nEnter Binary String / Data.\n");
-	fgets(inpt, 400, stdin);
-	for(int i=0;inpt[i]!='\0';i++){	
-
-		if(inpt[i]=='1'){
-			strcat(otpt, barkercode);
-		}else if(inpt[i]=='0'){
-			strcat(otpt, barkercodeNot);
-		}
-	strcat(otpt," ");
-	}
-
-	printf("\nThe given data converted to Barker Code is as follows.\n"); // this is the data that will be transmitted.
-	printf("%s",otpt);
-	printf("\n \nThe code again converted to data is as follows.\n");
-
-	for(int i=0;otpt[i]!='\0';){
-		err=0;
-		
-		if(otpt[i]==barkercode[0]){
-			temp1=1;
-		}
-		else if(otpt[i]==barkercodeNot[0]){
-			temp1=0;
-		}
-		else{
-			err=1;
-			break;
-		}
-		int k=i;
-        i++;
-		for(int j=1;j<11;j++){
-			if(otpt[k+j]==barkercode[j] && temp1==1){
-				temp1=1;
-				i++;
-				continue;
-			}
-			else if(otpt[k+j]==barkercodeNot[j] && temp1==0){
-				temp1=0;
-				i++;
-				continue;
-			}else{
-                err=1;
-                if(otpt[i]!='\0')
-                    printf("\n\nData Transmission Error.\n");
-				break; // breaking in both cases. even if it's transmission error, or if it has reached \0.
-			}
-		}
-		if(err){
-			break;
-		}else{
-			i+=1;
-		}
-
-		if(temp1){
-			printf("1");
-		}else if(!temp1){
-			printf("0");
-		}
-
-	}	
-    printf("\n");
-}--------------Dijkstra algorithm----------------------------------
+*************6 Write C/C++ program for representation of graphs using adjacency matrix and  adjacency lists*******************
 
 #include <stdio.h>
-#include <limits.h>
+#include <stdlib.h>
 
-#define V 6 // Maximum number of vertices in the graph
+// Define the maximum number of vertices
+#define MAX_VERTICES 100
 
-// Function to find the vertex with the minimum distance value
-int minDistance(int dist[], int visited[]) {
-    int min = INT_MAX, min_index;
+// Define a structure for a node in adjacency list
+struct AdjListNode {
+    int dest;
+    struct AdjListNode* next;
+};
 
-    for (int v = 0; v < V; v++) {
-        if (visited[v] == 0 && dist[v] <= min) {
-            min = dist[v];
-            min_index = v;
-        }
+// Define a structure for an adjacency list
+struct AdjList {
+    struct AdjListNode* head;
+};
+
+// Define a structure for the graph
+struct Graph {
+    int numVertices;
+    struct AdjList* array;
+};
+
+// Function to create a new adjacency list node
+struct AdjListNode* newAdjListNode(int dest) {
+    struct AdjListNode* newNode = (struct AdjListNode*)malloc(sizeof(struct AdjListNode));
+    newNode->dest = dest;
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Function to create a graph with 'V' vertices
+struct Graph* createGraph(int numVertices) {
+    struct Graph* graph = (struct Graph*)malloc(sizeof(struct Graph));
+    graph->numVertices = numVertices;
+
+    // Create an array of adjacency lists
+    graph->array = (struct AdjList*)malloc(numVertices * sizeof(struct AdjList));
+
+    // Initialize each adjacency list as empty by making head as NULL
+    for (int i = 0; i < numVertices; ++i) {
+        graph->array[i].head = NULL;
     }
 
-    return min_index;
+    return graph;
 }
 
-// Function to print the final shortest path
-void printPath(int parent[], int j) {
-    if (parent[j] == -1)
-        return;
+// Function to add an edge to an undirected graph
+void addEdge(struct Graph* graph, int src, int dest) {
+    // Add an edge from src to dest. A new node is added to the adjacency list of src
+    struct AdjListNode* newNode = newAdjListNode(dest);
+    newNode->next = graph->array[src].head;
+    graph->array[src].head = newNode;
 
-    printPath(parent, parent[j]);
-
-    printf("%d ", j);
+    // Since the graph is undirected, add an edge from dest to src also
+    newNode = newAdjListNode(src);
+    newNode->next = graph->array[dest].head;
+    graph->array[dest].head = newNode;
 }
 
-// Function to print the distance array
-void printSolution(int dist[], int n, int parent[]) {
-    printf("Vertex\t Distance\tPath\n");
-    for (int i = 1; i < V; i++) {
-        printf("%d -> %d \t %d\t\t%d ", 0, i, dist[i], 0);
-        printPath(parent, i);
+// Function to print the adjacency list representation of the graph
+void printGraphAdjList(struct Graph* graph) {
+    printf("Adjacency List Representation:\n");
+    for (int v = 0; v < graph->numVertices; ++v) {
+        struct AdjListNode* temp = graph->array[v].head;
+        printf("Vertex %d: ", v);
+        while (temp) {
+            printf("%d -> ", temp->dest);
+            temp = temp->next;
+        }
+        printf("NULL\n");
+    }
+}
+
+// Function to print the adjacency matrix representation of the graph
+void printGraphAdjMatrix(struct Graph* graph) {
+    printf("Adjacency Matrix Representation:\n");
+    for (int i = 0; i < graph->numVertices; ++i) {
+        for (int j = 0; j < graph->numVertices; ++j) {
+            int isConnected = 0;
+            struct AdjListNode* temp = graph->array[i].head;
+            while (temp) {
+                if (temp->dest == j) {
+                    isConnected = 1;
+                    break;
+                }
+                temp = temp->next;
+            }
+            printf("%d ", isConnected);
+        }
         printf("\n");
     }
 }
 
-// Function to implement Dijkstra's algorithm
-void dijkstra(int graph[V][V], int src) {
-    int dist[V];     // Array to store the shortest distance from source to i
-    int visited[V];  // Array to keep track of visited vertices
-    int parent[V];   // Array to store the shortest path tree
+int main() {
+    int numVertices, numEdges;
+    printf("Enter the number of vertices in the graph: ");
+    scanf("%d", &numVertices);
+    printf("Enter the number of edges in the graph: ");
+    scanf("%d", &numEdges);
 
-    // Initialize all distances as INFINITE and visited[] as false
-    for (int i = 0; i < V; i++) {
-        dist[i] = INT_MAX;
-        visited[i] = 0;
+    struct Graph* graph = createGraph(numVertices);
+
+    printf("Enter the edges (source destination):\n");
+    for (int i = 0; i < numEdges; ++i) {
+        int src, dest;
+        scanf("%d %d", &src, &dest);
+        addEdge(graph, src, dest);
+    }
+
+    printGraphAdjList(graph);
+    printGraphAdjMatrix(graph);
+
+    return 0;
+}
+
+***********7 Write C/C++ program for graph traversals using BFS and DFS****************
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// Define the maximum number of vertices
+#define MAX_VERTICES 100
+
+// Define a structure for a node in adjacency list
+struct AdjListNode {
+    int dest;
+    struct AdjListNode* next;
+};
+
+// Define a structure for an adjacency list
+struct AdjList {
+    struct AdjListNode* head;
+};
+
+// Define a structure for the graph
+struct Graph {
+    int numVertices;
+    struct AdjList* array;
+};
+
+// Function to create a new adjacency list node
+struct AdjListNode* newAdjListNode(int dest) {
+    struct AdjListNode* newNode = (struct AdjListNode*)malloc(sizeof(struct AdjListNode));
+    newNode->dest = dest;
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Function to create a graph with 'V' vertices
+struct Graph* createGraph(int numVertices) {
+    struct Graph* graph = (struct Graph*)malloc(sizeof(struct Graph));
+    graph->numVertices = numVertices;
+
+    // Create an array of adjacency lists
+    graph->array = (struct AdjList*)malloc(numVertices * sizeof(struct AdjList));
+
+    // Initialize each adjacency list as empty by making head as NULL
+    for (int i = 0; i < numVertices; ++i) {
+        graph->array[i].head = NULL;
+    }
+
+    return graph;
+}
+
+// Function to add an edge to an undirected graph
+void addEdge(struct Graph* graph, int src, int dest) {
+    // Add an edge from src to dest. A new node is added to the adjacency list of src
+    struct AdjListNode* newNode = newAdjListNode(dest);
+    newNode->next = graph->array[src].head;
+    graph->array[src].head = newNode;
+
+    // Since the graph is undirected, add an edge from dest to src also
+    newNode = newAdjListNode(src);
+    newNode->next = graph->array[dest].head;
+    graph->array[dest].head = newNode;
+}
+
+// Function to perform Breadth-First Search (BFS) traversal of the graph
+void BFS(struct Graph* graph, int startVertex) {
+    // Create a boolean array to mark visited vertices
+    int visited[MAX_VERTICES] = {0};
+
+    // Create a queue for BFS
+    int queue[MAX_VERTICES];
+    int front = 0, rear = 0;
+
+    // Mark the current node as visited and enqueue it
+    visited[startVertex] = 1;
+    queue[rear++] = startVertex;
+
+    while (front < rear) {
+        // Dequeue a vertex from the queue and print it
+        int currentVertex = queue[front++];
+        printf("%d ", currentVertex);
+
+        // Get all adjacent vertices of the dequeued vertex
+        // If an adjacent vertex has not been visited, mark it visited and enqueue it
+        struct AdjListNode* temp = graph->array[currentVertex].head;
+        while (temp) {
+            int adjVertex = temp->dest;
+            if (!visited[adjVertex]) {
+                visited[adjVertex] = 1;
+                queue[rear++] = adjVertex;
+            }
+            temp = temp->next;
+        }
+    }
+}
+
+// Recursive function for Depth-First Search (DFS) traversal
+void DFSUtil(struct Graph* graph, int vertex, int visited[]) {
+    // Mark the current node as visited and print it
+    visited[vertex] = 1;
+    printf("%d ", vertex);
+
+    // Recur for all the vertices adjacent to this vertex
+    struct AdjListNode* temp = graph->array[vertex].head;
+    while (temp) {
+        int adjVertex = temp->dest;
+        if (!visited[adjVertex]) {
+            DFSUtil(graph, adjVertex, visited);
+        }
+        temp = temp->next;
+    }
+}
+
+// Function to perform Depth-First Search (DFS) traversal of the graph
+void DFS(struct Graph* graph, int startVertex) {
+    // Create a boolean array to mark visited vertices
+    int visited[MAX_VERTICES] = {0};
+
+    // Call the recursive helper function to print DFS traversal
+    DFSUtil(graph, startVertex, visited);
+}
+
+int main() {
+    int numVertices, numEdges;
+    printf("Enter the number of vertices in the graph: ");
+    scanf("%d", &numVertices);
+    printf("Enter the number of edges in the graph: ");
+    scanf("%d", &numEdges);
+
+    struct Graph* graph = createGraph(numVertices);
+
+    printf("Enter the edges (source destination):\n");
+    for (int i = 0; i < numEdges; ++i) {
+        int src, dest;
+        scanf("%d %d", &src, &dest);
+        addEdge(graph, src, dest);
+    }
+
+    printf("Breadth-First Search (BFS) traversal starting from vertex 0: ");
+    BFS(graph, 0);
+    printf("\n");
+
+    printf("Depth-First Search (DFS) traversal starting from vertex 0: ");
+    DFS(graph, 0);
+    printf("\n");
+
+    return 0;
+}
+
+
+**************8 Write C/C++ program to demonstrate Hashing using linear or quadratic probing*********************
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+// Define the size of the hash table
+#define TABLE_SIZE 10
+
+// Define a structure for a hash table entry
+struct HashEntry {
+    int key;
+    int value;
+    bool occupied;
+};
+
+// Define a structure for the hash table
+struct HashTable {
+    struct HashEntry* table[TABLE_SIZE];
+};
+
+// Function to create a new hash table entry
+struct HashEntry* createHashEntry(int key, int value) {
+    struct HashEntry* newEntry = (struct HashEntry*)malloc(sizeof(struct HashEntry));
+    newEntry->key = key;
+    newEntry->value = value;
+    newEntry->occupied = true;
+    return newEntry;
+}
+
+// Function to create a new hash table
+struct HashTable* createHashTable() {
+    struct HashTable* hashTable = (struct HashTable*)malloc(sizeof(struct HashTable));
+    for (int i = 0; i < TABLE_SIZE; ++i) {
+        hashTable->table[i] = NULL;
+    }
+    return hashTable;
+}
+
+// Function to compute the hash index
+int hashCode(int key) {
+    return key % TABLE_SIZE;
+}
+
+// Function to insert a key-value pair into the hash table using linear probing
+void insert(struct HashTable* hashTable, int key, int value) {
+    int index = hashCode(key);
+
+    while (hashTable->table[index] != NULL && hashTable->table[index]->key != key) {
+        index = (index + 1) % TABLE_SIZE;
+    }
+
+    if (hashTable->table[index] != NULL) {
+        free(hashTable->table[index]);
+    }
+
+    hashTable->table[index] = createHashEntry(key, value);
+}
+
+// Function to lookup a key in the hash table
+int search(struct HashTable* hashTable, int key) {
+    int index = hashCode(key);
+
+    while (hashTable->table[index] != NULL) {
+        if (hashTable->table[index]->key == key) {
+            return hashTable->table[index]->value;
+        }
+        index = (index + 1) % TABLE_SIZE;
+    }
+
+    return -1;
+}
+
+// Function to print the hash table
+void display(struct HashTable* hashTable) {
+    printf("Hash Table:\n");
+    for (int i = 0; i < TABLE_SIZE; ++i) {
+        if (hashTable->table[i] != NULL) {
+            printf("Index %d: Key: %d, Value: %d\n", i, hashTable->table[i]->key, hashTable->table[i]->value);
+        } else {
+            printf("Index %d: NULL\n", i);
+        }
+    }
+}
+
+int main() {
+    struct HashTable* hashTable = createHashTable();
+
+    int choice;
+    do {
+        printf("\nHashing using Linear Probing:\n");
+        printf("1. Insert a key-value pair\n");
+        printf("2. Search for a key\n");
+        printf("3. Display the hash table\n");
+        printf("4. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: {
+                int key, value;
+                printf("Enter key and value to insert: ");
+                scanf("%d %d", &key, &value);
+                insert(hashTable, key, value);
+                break;
+            }
+            case 2: {
+                int key;
+                printf("Enter key to search: ");
+                scanf("%d", &key);
+                int result = search(hashTable, key);
+                if (result != -1) {
+                    printf("Value found: %d\n", result);
+                } else {
+                    printf("Value not found!\n");
+                }
+                break;
+            }
+            case 3:
+                display(hashTable);
+                break;
+            case 4:
+                printf("Exiting...\n");
+                break;
+            default:
+                printf("Invalid choice! Please enter a valid choice.\n");
+        }
+    } while (choice != 4);
+
+    // Free allocated memory
+    for (int i = 0; i < TABLE_SIZE; ++i) {
+        if (hashTable->table[i] != NULL) {
+            free(hashTable->table[i]);
+        }
+    }
+    free(hashTable);
+
+    return 0;
+}
+
+************9 Write C/C++ program to implement Heap data structure. Create Max-heap and insert elements into it.**********
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// Define the maximum size of the heap
+#define MAX_HEAP_SIZE 100
+
+// Define the structure of the Max-Heap
+struct MaxHeap {
+    int* array;
+    int size;
+    int capacity;
+};
+
+// Function to create a new Max-Heap
+struct MaxHeap* createMaxHeap(int capacity) {
+    struct MaxHeap* maxHeap = (struct MaxHeap*)malloc(sizeof(struct MaxHeap));
+    maxHeap->capacity = capacity;
+    maxHeap->size = 0;
+    maxHeap->array = (int*)malloc(capacity * sizeof(int));
+    return maxHeap;
+}
+
+// Function to swap two integers
+void swap(int* a, int* b) {
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Function to get the parent index of a node
+int getParentIndex(int i) {
+    return (i - 1) / 2;
+}
+
+// Function to get the left child index of a node
+int getLeftChildIndex(int i) {
+    return (2 * i) + 1;
+}
+
+// Function to get the right child index of a node
+int getRightChildIndex(int i) {
+    return (2 * i) + 2;
+}
+
+// Function to insert a new element into the Max-Heap
+void insert(struct MaxHeap* maxHeap, int value) {
+    if (maxHeap->size == maxHeap->capacity) {
+        printf("Max-Heap is full. Cannot insert element.\n");
+        return;
+    }
+
+    // Insert the new element at the end of the array
+    int i = maxHeap->size;
+    maxHeap->array[i] = value;
+    maxHeap->size++;
+
+    // Fix the Max-Heap property if violated
+    while (i != 0 && maxHeap->array[getParentIndex(i)] < maxHeap->array[i]) {
+        swap(&maxHeap->array[i], &maxHeap->array[getParentIndex(i)]);
+        i = getParentIndex(i);
+    }
+}
+
+// Function to print the Max-Heap
+void printMaxHeap(struct MaxHeap* maxHeap) {
+    printf("Max-Heap: ");
+    for (int i = 0; i < maxHeap->size; ++i) {
+        printf("%d ", maxHeap->array[i]);
+    }
+    printf("\n");
+}
+
+int main() {
+    int capacity, numElements;
+    printf("Enter the capacity of the Max-Heap: ");
+    scanf("%d", &capacity);
+    struct MaxHeap* maxHeap = createMaxHeap(capacity);
+
+    printf("Enter the number of elements to insert into the Max-Heap: ");
+    scanf("%d", &numElements);
+
+    printf("Enter the elements:\n");
+    for (int i = 0; i < numElements; ++i) {
+        int value;
+        scanf("%d", &value);
+        insert(maxHeap, value);
+    }
+
+    printMaxHeap(maxHeap);
+
+    // Free allocated memory
+    free(maxHeap->array);
+    free(maxHeap);
+
+    return 0;
+}
+
+*********Dijkstra Algorithm************
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <stdbool.h>
+
+// Define the maximum number of vertices
+#define MAX_VERTICES 100
+
+// Function to find the vertex with the minimum distance value, from the set of vertices not yet included in shortest path tree
+int minDistance(int distance[], bool shortestPathTreeSet[], int numVertices) {
+    int min = INT_MAX, minIndex;
+
+    for (int v = 0; v < numVertices; v++) {
+        if (shortestPathTreeSet[v] == false && distance[v] <= min) {
+            min = distance[v];
+            minIndex = v;
+        }
+    }
+
+    return minIndex;
+}
+
+// Function to print the constructed distance array
+void printSolution(int distance[], int numVertices) {
+    printf("Vertex \t Distance from Source\n");
+    for (int i = 0; i < numVertices; i++) {
+        printf("%d \t\t %d\n", i, distance[i]);
+    }
+}
+
+// Function to implement Dijkstra's algorithm
+void dijkstra(int graph[MAX_VERTICES][MAX_VERTICES], int source, int numVertices) {
+    int distance[numVertices]; // The output array. distance[i] will hold the shortest distance from source to i
+    bool shortestPathTreeSet[numVertices]; // shortestPathTreeSet[i] will be true if vertex i is included in shortest path tree or shortest distance from source to i is finalized
+
+    // Initialize all distances as INFINITE and shortestPathTreeSet[] as false
+    for (int i = 0; i < numVertices; i++) {
+        distance[i] = INT_MAX;
+        shortestPathTreeSet[i] = false;
     }
 
     // Distance of source vertex from itself is always 0
-    dist[src] = 0;
-    parent[src] = -1; // Source vertex has no parent
+    distance[source] = 0;
 
     // Find shortest path for all vertices
-    for (int count = 0; count < V - 1; count++) {
-        // Pick the minimum distance vertex from the set of vertices not yet visited
-        int u = minDistance(dist, visited);
+    for (int count = 0; count < numVertices - 1; count++) {
+        // Pick the minimum distance vertex from the set of vertices not yet processed.
+        // u is always equal to source in the first iteration.
+        int u = minDistance(distance, shortestPathTreeSet, numVertices);
 
-        // Mark the picked vertex as visited
-        visited[u] = 1;
+        // Mark the picked vertex as processed
+        shortestPathTreeSet[u] = true;
 
-        // Update dist value of the adjacent vertices of the picked vertex
-        for (int v = 0; v < V; v++) {
-            // Update dist[v] only if it's not visited, there is an edge from u to v,
-            // and the total weight of path from src to v through u is smaller than current value of dist[v]
-            if (!visited[v] && graph[u][v] && dist[u] != INT_MAX && dist[u] + graph[u][v] < dist[v]) {
-                parent[v] = u;
-                dist[v] = dist[u] + graph[u][v];
+        // Update distance value of the adjacent vertices of the picked vertex
+        for (int v = 0; v < numVertices; v++) {
+            // Update distance[v] only if is not in shortestPathTreeSet, there is an edge from u to v, and total weight of path from source to v through u is smaller than current value of distance[v]
+            if (!shortestPathTreeSet[v] && graph[u][v] && distance[u] != INT_MAX && distance[u] + graph[u][v] < distance[v]) {
+                distance[v] = distance[u] + graph[u][v];
             }
         }
     }
 
-    // Print the solution
-    printSolution(dist, V, parent);
+    // Print the constructed distance array
+    printSolution(distance, numVertices);
 }
 
 int main() {
-    int graph[V][V];
+    int numVertices;
 
-    // Input the adjacency matrix representing the graph
-    printf("Enter the adjacency matrix (%d x %d) for the graph:\n", V, V);
-    for (int i = 0; i < V; i++) {
-        for (int j = 0; j < V; j++) {
+    printf("Enter the number of vertices: ");
+    scanf("%d", &numVertices);
+
+    int graph[MAX_VERTICES][MAX_VERTICES];
+
+    printf("Enter the adjacency matrix:\n");
+    for (int i = 0; i < numVertices; i++) {
+        for (int j = 0; j < numVertices; j++) {
             scanf("%d", &graph[i][j]);
         }
     }
 
-    // Call Dijkstra's algorithm with source vertex 0
-    dijkstra(graph, 0);
+    int source;
+    printf("Enter the source vertex: ");
+    scanf("%d", &source);
+
+    dijkstra(graph, source, numVertices);
 
     return 0;
 }
 
+`limits.h` is a header file in C that provides macros for defining various properties of integer types. 
+For example, it defines macros like `INT_MAX`, `INT_MIN`, `UINT_MAX`, `SHRT_MAX`, `SHRT_MIN`, etc., 
+which represent the maximum and minimum values that can be stored in different integer types like `int`, `unsigned int`, `short`, etc. 
+These macros are useful for performing operations involving integer types in a portable manner, as the actual sizes of integer types may vary 
+across different platforms.
 
-------------------Bellman Ford Algorithm------------------------------------
+`stdbool.h` is a header file in C that provides a boolean data type along with its possible values (`true` and `false`) and 
+corresponding macros (`bool`, `true`, and `false`). It's used to define boolean variables and expressions in C programs. 
+The `bool` data type can take only two values: `true` (which evaluates to an integer value of 1) and `false` (which evaluates to an integer value of 0). 
+This header file is particularly useful for improving code readability and writing more expressive code by using boolean variables and expressions.
+
+
+**********10 Write C or C++ program to create Binary search tree, insertion and searching and all deletion cases in BST******
 
 #include <stdio.h>
-#include <limits.h>
+#include <stdlib.h>
 
-#define V 6 // Maximum number of vertices in the graph
-
-// Structure to represent an edge in the graph
-struct Edge {
-    int src, dest, weight;
+// Define the structure of a node in the BST
+struct Node {
+    int data;
+    struct Node* left;
+    struct Node* right;
 };
 
-// Function to find the shortest path using Bellman-Ford algorithm
-void bellmanFord(struct Edge edges[], int numEdges, int src) {
-    int dist[V]; // Array to store the shortest distance from source to i
+// Function to create a new node
+struct Node* createNode(int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
 
-    // Initialize distance array
-    for (int i = 0; i < V; i++)
-        dist[i] = INT_MAX;
-    dist[src] = 0; // Distance from source to itself is 0
-
-    // Relax all edges |V| - 1 times
-    for (int i = 0; i < V - 1; i++) {
-        for (int j = 0; j < numEdges; j++) {
-            int u = edges[j].src;
-            int v = edges[j].dest;
-            int weight = edges[j].weight;
-            if (dist[u] != INT_MAX && dist[u] + weight < dist[v])
-                dist[v] = dist[u] + weight;
-        }
+// Function to insert a node into the BST
+struct Node* insertNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return createNode(value);
     }
-
-    // Check for negative weight cycles
-    for (int i = 0; i < numEdges; i++) {
-        int u = edges[i].src;
-        int v = edges[i].dest;
-        int weight = edges[i].weight;
-        if (dist[u] != INT_MAX && dist[u] + weight < dist[v]) {
-            printf("Graph contains negative weight cycle\n");
-            return;
-        }
+    if (value < root->data) {
+        root->left = insertNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = insertNode(root->right, value);
     }
+    return root;
+}
 
-    // Print shortest paths
-    printf("Vertex\t Distance from Source\n");
-    for (int i = 0; i < V; i++)
-        printf("%d\t %d\n", i, dist[i]);
+// Function to perform inorder traversal of the BST
+void inorderTraversal(struct Node* root) {
+    if (root != NULL) {
+        inorderTraversal(root->left);
+        printf("%d ", root->data);
+        inorderTraversal(root->right);
+    }
+}
+
+// Function to search for a value in the BST
+struct Node* search(struct Node* root, int value) {
+    if (root == NULL || root->data == value) {
+        return root;
+    }
+    if (value < root->data) {
+        return search(root->left, value);
+    }
+    return search(root->right, value);
+}
+
+// Function to find the node with the minimum value in a subtree
+struct Node* minValueNode(struct Node* node) {
+    struct Node* current = node;
+    while (current && current->left != NULL) {
+        current = current->left;
+    }
+    return current;
+}
+
+// Function to delete a node from the BST
+struct Node* deleteNode(struct Node* root, int value) {
+    if (root == NULL) {
+        return root;
+    }
+    if (value < root->data) {
+        root->left = deleteNode(root->left, value);
+    } else if (value > root->data) {
+        root->right = deleteNode(root->right, value);
+    } else {
+        // Node with only one child or no child
+        if (root->left == NULL) {
+            struct Node* temp = root->right;
+            free(root);
+            return temp;
+        } else if (root->right == NULL) {
+            struct Node* temp = root->left;
+            free(root);
+            return temp;
+        }
+
+        // Node with two children: Get the inorder successor (smallest in the right subtree)
+        struct Node* temp = minValueNode(root->right);
+
+        // Copy the inorder successor's content to this node
+        root->data = temp->data;
+
+        // Delete the inorder successor
+        root->right = deleteNode(root->right, temp->data);
+    }
+    return root;
 }
 
 int main() {
-    int numEdges;
-    printf("Enter the number of edges: ");
-    scanf("%d", &numEdges);
+    struct Node* root = NULL;
 
-    struct Edge edges[numEdges];
-    printf("Enter source, destination, and weight for each edge:\n");
-    for (int i = 0; i < numEdges; i++) {
-        printf("Edge %d: ", i + 1);
-        scanf("%d %d %d", &edges[i].src, &edges[i].dest, &edges[i].weight);
+    // Insertion
+    int numElements;
+    printf("Enter the number of elements to insert into the BST: ");
+    scanf("%d", &numElements);
+    printf("Enter the elements:\n");
+    for (int i = 0; i < numElements; ++i) {
+        int value;
+        scanf("%d", &value);
+        root = insertNode(root, value);
     }
 
-    int src;
-    printf("Enter the source vertex: ");
-    scanf("%d", &src);
+    // Display BST after insertion
+    printf("BST after insertion: ");
+    inorderTraversal(root);
+    printf("\n");
 
-    bellmanFord(edges, numEdges, src);
-
-    return 0;
-}
-
-
-
----------------------FHSS-----------------------------------------------------
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-int main() {
-
-    char kbit[8][2][4]={
-        {{"000\0"},{"200\0"}}, 
-        {{"001\0"},{"300\0"}},
-        {{"010\0"},{"400\0"}},
-        {{"011\0"},{"500\0"}},
-        {{"100\0"},{"600\0"}},
-        {{"101\0"},{"700\0"}},
-        {{"110\0"},{"800\0"}},
-        {{"111\0"},{"900\0"}},
-    };// kbit array -- first element is kbit number, 
-    //here 3 bit number rather, and 2nd number is frequency in hz /mhz/ghz . you can give anything. 
-    // \0 is to end string , and hence for a kbit number, the char array is of k+1, here i.e. 4.
-
-    char drawArr[50][4];
-    int drawArrIndex=0;
-
-    char inpt[150]; 
-    char inptTemp[4];
-    
-    int  inptsliced;
-    int  iTemp;
-    printf("Enter Binary Data\n");
-    fgets(inpt,150,stdin);
-    printf("--------------------------------------------------------------------------------");
-    printf("\n\n");
-    for(int i=0;inpt[i]!='\0';i=i+3){
-        strncpy(inptTemp,inpt+i,3); // strncpy(destination_string,input_string+startingPos,len);
-            for(int l=0;l<8;l++){
-                if(inptTemp[0]==kbit[l][0][0] && inptTemp[1]==kbit[l][0][1] && inptTemp[2]==kbit[l][0][2]){
-                    drawArr[drawArrIndex][0]=kbit[l][1][0];
-                    drawArr[drawArrIndex][1]=kbit[l][1][1];
-                    drawArr[drawArrIndex][2]=kbit[l][1][2];
-                    drawArr[drawArrIndex++][3]=kbit[l][1][3];
-                }
-            }
-            iTemp=i;
+    // Searching
+    int searchValue;
+    printf("Enter the value to search in the BST: ");
+    scanf("%d", &searchValue);
+    struct Node* foundNode = search(root, searchValue);
+    if (foundNode != NULL) {
+        printf("%d found in the BST.\n", searchValue);
+    } else {
+        printf("%d not found in the BST.\n", searchValue);
     }
-    printf("\tTime\n\n");
-    for(int i=0; i<drawArrIndex;i++){
-        printf("\tt=%d \t",i);
-        switch(atoi(drawArr[i])){
-            case 200:   
-                        break;
-            case 300:   
-                        printf("\t");
-                        break;
-            case 400:   
-                        printf("\t\t");
-                        break;
-            case 500:   
-                        printf("\t\t\t");            
-                        break;
-            case 600:   
-                        printf("\t\t\t\t");  
-                        break;
-            case 700:   
-                        printf("\t\t\t\t\t");  
-                        break;
-            case 800:
-                        printf("\t\t\t\t\t\t");     
-                        break;
-            case 900:
-                        printf("\t\t\t\t\t\t\t");     
-                        break;
-            default: exit(0);break;
-        }
-        printf(" -\n\n");
-    }
-        printf("--------------------------------------------------------------------------------\n");
-        printf("\tFreq");
-        printf("\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t",kbit[0][1],kbit[1][1],kbit[2][1],kbit[3][1],kbit[4][1],kbit[5][1],kbit[6][1],kbit[7][1]);
-        printf("\n\t(Hz)\n");
+
+    // Deletion
+    int deleteValue;
+    printf("Enter the value to delete from the BST: ");
+    scanf("%d", &deleteValue);
+    root = deleteNode(root, deleteValue);
+
+    // Display BST after deletion
+    printf("BST after deletion: ");
+    inorderTraversal(root);
+    printf("\n");
+
+    // Free allocated memory
+    // (Note: Memory deallocation is not shown for simplicity in this example)
     return 0;
 }
